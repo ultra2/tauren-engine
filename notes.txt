@@ -1,0 +1,42 @@
+Install node modules:
+---------------------
+$ npm install typescript --save
+$ npm install grunt --save
+$ npm install grunt-cli --save
+$ npm install grunt-ts --save
+$ npm install grunt-tslint --save
+$ npm install grunt-contrib-watch --save
+$ npm install tslint --save
+
+$ npm install mongodb --save
+$ npm install gridfs-stream  --save 
+$ npm install body-parser --save
+$ npm install express --save
+$ npm install node-uuid --save
+$ npm install mime-types --save
+$ npm install jszip@3 --save
+$ npm install request --save
+
+Install Typings:
+----------------
+
+????? => $ node_modules/.bin/typings typings i env~node -SG
+
+npm install --save @types/mongodb
+npm install --save @types/gridfs-stream
+npm install --save @types/body-parser
+npm install --save @types/express
+npm install --save @types/node-uuid
+npm install --save @types/mime
+npm install --save @types/jszip
+npm install --save @types/request
+
+Commands
+---------
+count files in a directory: find node_modules -type f | wc -l
+delete unused files: modclean -n safe
+
+after change .gitignore run this!!!! (NOTE : First commit your current changes, or you will lose them) 
+git rm -r --cached .
+git add .
+git commit -m "fixed untracked files"
