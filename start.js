@@ -38,7 +38,7 @@ class Server {
             let router = express.Router();
             router.get("/", function (req, res, next) {
                 return __awaiter(this, void 0, void 0, function* () {
-                    res.send("hello2");
+                    res.send("tauren-engine running!");
                     res.end();
                 });
             });
