@@ -8,28 +8,16 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 console.log("Start...");
-const mongodb = require("mongodb");
 const express = require("express");
 const bodyParser = require("body-parser");
 const controllers = require("./controllers");
-const request = require('request');
+const request = require("request");
+const DBContext_1 = require('./DBContext');
 class Server {
     run() {
         return __awaiter(this, void 0, void 0, function* () {
-            yield this.initMongo();
+            yield DBContext_1.default.initMongo();
             yield this.initApp();
-        });
-    }
-    initMongo() {
-        return __awaiter(this, void 0, void 0, function* () {
-            var url = (process.env["OPENSHIFT_MONGODB_DB_URL"]) ? process.env["OPENSHIFT_MONGODB_DB_URL"] : "mongodb://admin:Leonardo19770206Z@ds117189.mlab.com:17189/ide";
-            try {
-                this.db = yield mongodb.MongoClient.connect(url);
-                console.log("Mongo initialized!");
-            }
-            catch (err) {
-                console.log('Mongo error: ', err.message);
-            }
         });
     }
     initApp() {
@@ -42,19 +30,19 @@ class Server {
                     res.end();
                 });
             });
-            router.get('/debugurl', function (req, res) {
+            router.get('/debugurl', function (req, res, next) {
                 request('http://localhost:9229/json/list', function (error, response, body) {
-                    try{
-                        var url = JSON.parse(body)[0].devtoolsFrontendUrl
-                        url = url.replace("https://chrome-devtools-frontend.appspot.com", "chrome-devtools://devtools/remote")
-                        url = url.replace("localhost:9229", "nodejs-ex-debug-tauren.44fs.preview.openshiftapps.com")
-                        res.send(url)
-                        res.end()
+                    try {
+                        var url = JSON.parse(body)[0].devtoolsFrontendUrl;
+                        url = url.replace("https://chrome-devtools-frontend.appspot.com", "chrome-devtools://devtools/remote");
+                        url = url.replace("localhost:9229", "nodejs-ex-debug-tauren.44fs.preview.openshiftapps.com");
+                        res.send(url);
+                        res.end();
                     }
-                    catch(error){
-                        res.send(error)
+                    catch (error) {
+                        res.send(error);
                     }
-                })
+                });
             });
             router.get('/:application/:controller/:method/:url(*)?', function (req, res, next) {
                 return __awaiter(this, void 0, void 0, function* () {
@@ -69,7 +57,7 @@ class Server {
                             res.end();
                             return;
                         }
-                        var ctrl = new controllers[controller](this.db, application);
+                        var ctrl = new controllers[controller](application);
                         var result = yield ctrl[method](url, req.query);
                         res.status(result.status);
                         res.setHeader("Content-Type", result.contentType);
@@ -91,7 +79,7 @@ class Server {
                     var url = req.params["url"];
                     var body = req["body"];
                     try {
-                        var ctrl = new controllers[controller](this.db, application);
+                        var ctrl = new controllers[controller](application);
                         var result = yield ctrl[method](url, req.query, body);
                         res.status(result.status);
                         res.setHeader("Content-Type", result.contentType);
@@ -113,9 +101,8 @@ class Server {
                 err.status = 404;
                 next(err);
             });
-
-            var port = process.env.PORT || process.env.OPENSHIFT_NODEJS_PORT || 8080
-            var ip   = process.env.IP   || process.env.OPENSHIFT_NODEJS_IP || '0.0.0.0'
+            var port = process.env.PORT || process.env.OPENSHIFT_NODEJS_PORT || 8080;
+            var ip = process.env.IP || process.env.OPENSHIFT_NODEJS_IP || '0.0.0.0';
             this.app.listen(port, ip, function () {
                 console.log('Express started on %s:%d ...', ip, port);
             });
