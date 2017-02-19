@@ -24,7 +24,7 @@ class Client extends Model {
         }
         else {
             fileName = "";
-            dirs = splitted.slice(0, splitted.length - 1);
+            dirs = splitted.slice(0, splitted.length);
         }
         result.stub = this._attachments;
         for (var i = 0; i < dirs.length; i++) {

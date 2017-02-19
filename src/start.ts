@@ -6,13 +6,14 @@ console.log("Start...")
 import * as mongodb from "mongodb"
 import * as express from "express"
 import * as bodyParser from "body-parser"
-import * as controllers from "./controllers"
 import * as request from "request"
 import DBContext from './DBContext'
+import Engine from './Engine'
 
 class Server {
 
-    private app: express.Application;
+    private app: express.Application
+    private engine: Engine
 
     public async run() {
         await DBContext.initMongo()
@@ -22,12 +23,32 @@ class Server {
     private async initApp() {
         this.app = express()
 
+        this.engine = new Engine()
+        await this.engine.loadApplications()
+
         let router: express.Router = express.Router();
 
         router.get("/", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
-            res.send("tauren-engine running!")
-            res.end()
-        });
+
+           
+            try{
+                var controller = new this.engine.applications.studio.controllers.MainController()
+                var result = controller.Test()
+
+                res.send(result)
+                res.end()
+                
+                //return {status: 200, contentType: fileInfo.contentType, body: fileInfo.buffer}
+            }
+            catch(err){
+                throw Error(err.message)
+            }
+
+           
+
+            //res.send("tauren-engine running!")
+            //res.end()
+        }.bind(this))
 
         router.get('/debugurl', function (req: express.Request, res: express.Response, next: express.NextFunction) {
             request('http://localhost:9229/json/list', function (error, response, body) {
@@ -61,13 +82,20 @@ class Server {
             var method = req.params["method"]
             var url = req.params["url"]
             try {
-                if (!controllers[controller]){
+                var app = this.engine.applications[application]
+                 if (!app){
                     res.status(404)
                     res.end()
                     return
                 }
-                var ctrl = new controllers[controller](application)
-                var result = await <controllers.response>ctrl[method](url, req.query)
+                var ctrl = app.controllers[controller+"Controller"]
+                if (!ctrl){
+                    res.status(404)
+                    res.end()
+                    return
+                }
+                var ctrl = new ctrl()
+                var result = await ctrl[method](url, req.query)
                 res.status(result.status)
                 res.setHeader("Content-Type", result.contentType)
                 res.send(result.body)
@@ -87,8 +115,20 @@ class Server {
             var url = req.params["url"]
             var body = req["body"]
             try {
-                var ctrl = new controllers[controller](application)
-                var result = await <controllers.response>ctrl[method](url, req.query, body)
+                var app = this.engine.applications[application]
+                 if (!app){
+                    res.status(404)
+                    res.end()
+                    return
+                }
+                var ctrl = app.controllers[controller+"Controller"]
+                if (!ctrl){
+                    res.status(404)
+                    res.end()
+                    return
+                }
+                var ctrl = new ctrl()
+                var result = await ctrl[method](url, req.query, body)
                 res.status(result.status)
                 res.setHeader("Content-Type", result.contentType)
                 res.send(result.body)

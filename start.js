@@ -10,9 +10,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 console.log("Start...");
 const express = require("express");
 const bodyParser = require("body-parser");
-const controllers = require("./controllers");
 const request = require("request");
 const DBContext_1 = require('./DBContext');
+const Engine_1 = require('./Engine');
 class Server {
     run() {
         return __awaiter(this, void 0, void 0, function* () {
@@ -23,13 +23,22 @@ class Server {
     initApp() {
         return __awaiter(this, void 0, void 0, function* () {
             this.app = express();
+            this.engine = new Engine_1.default();
+            yield this.engine.loadApplications();
             let router = express.Router();
             router.get("/", function (req, res, next) {
                 return __awaiter(this, void 0, void 0, function* () {
-                    res.send("tauren-engine running!");
-                    res.end();
+                    try {
+                        var controller = new this.engine.applications.studio.controllers.MainController();
+                        var result = controller.Test();
+                        res.send(result);
+                        res.end();
+                    }
+                    catch (err) {
+                        throw Error(err.message);
+                    }
                 });
-            });
+            }.bind(this));
             router.get('/debugurl', function (req, res, next) {
                 request('http://localhost:9229/json/list', function (error, response, body) {
                     try {
@@ -52,12 +61,19 @@ class Server {
                     var method = req.params["method"];
                     var url = req.params["url"];
                     try {
-                        if (!controllers[controller]) {
+                        var app = this.engine.applications[application];
+                        if (!app) {
                             res.status(404);
                             res.end();
                             return;
                         }
-                        var ctrl = new controllers[controller](application);
+                        var ctrl = app.controllers[controller + "Controller"];
+                        if (!ctrl) {
+                            res.status(404);
+                            res.end();
+                            return;
+                        }
+                        var ctrl = new ctrl();
                         var result = yield ctrl[method](url, req.query);
                         res.status(result.status);
                         res.setHeader("Content-Type", result.contentType);
@@ -79,7 +95,19 @@ class Server {
                     var url = req.params["url"];
                     var body = req["body"];
                     try {
-                        var ctrl = new controllers[controller](application);
+                        var app = this.engine.applications[application];
+                        if (!app) {
+                            res.status(404);
+                            res.end();
+                            return;
+                        }
+                        var ctrl = app.controllers[controller + "Controller"];
+                        if (!ctrl) {
+                            res.status(404);
+                            res.end();
+                            return;
+                        }
+                        var ctrl = new ctrl();
                         var result = yield ctrl[method](url, req.query, body);
                         res.status(result.status);
                         res.setHeader("Content-Type", result.contentType);

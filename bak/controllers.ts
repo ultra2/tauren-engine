@@ -1,15 +1,11 @@
 /// <reference path="_all.d.ts" />
 "use strict";
 
-import * as mongodb from "mongodb"
 import * as uuid from "node-uuid"
-import * as mime from "mime"
-import * as stream from "stream"
-import * as gridfs from "gridfs-stream"
 import * as JSZip from 'jszip'
 import Utils from './utils'
 import * as model from './model'
-import filemanager from './filemanager'
+import Application from './Application'
 import DBContext from './DBContext'
 
 export class response {
@@ -72,7 +68,7 @@ export class applications extends base {
             }
         }, {w: 1, checkKeys: false})
 
-        await filemanager.createFile(this.application, fileId, "index.html", "hello")
+        await Application.createFile(this.application, fileId, "index.html", "hello")
 
         return {status:200, contentType:"applitaion/json", body:{ data:"ok" }}
     }
@@ -121,7 +117,7 @@ export class client extends base {
      
     public async loadFile(url:string, params:Object) : Promise<fileResponse> {
         try{
-            var fileInfo = await filemanager.loadFile(this.application, url)
+            var fileInfo = await Application.loadFile(this.application, url)
             return {status: 200, contentType: fileInfo.contentType, body: fileInfo.buffer}
         }
         catch(err){
@@ -132,24 +128,12 @@ export class client extends base {
     public async saveFile(url:string, params:Object, body:any) : Promise<response> {
         //body = new Buffer(body.image, 'base64').toString() //curl
         body = new Buffer(body, 'base64').toString()
-        var data = await filemanager.uploadFileOrFolder(this.application, url, body)
+        var data = await Application.uploadFileOrFolder(this.application, url, body)
         return { status: 200, contentType: "application/json", body: data }
     }
 
-    public async removeFile(id:string) {
-        //var bucket = new mongodb.GridFSBucket(this.db, { bucketName: this.application });
-        var gfs = gridfs(DBContext.db, mongodb);
-        gfs.remove({
-            _id : id,
-            root: this.application
-        },function(err){
-            console.log(err)
-        });
-        //await bucket.delete(id)
-    }
-
     public async installPackage(url:string, params:Object, body:any) : Promise<dataResponse> {
-        await filemanager.garbageFiles(this.application)
+        await Application.garbageFiles(this.application)
         
         var githubUrlSplitted = body.githubUrl.split("/")
         var zipUrl = ""
@@ -186,7 +170,7 @@ export class client extends base {
                     //var uint8array = await entry.async("uint8array") //Invalid non-string/buffer chunk
                     //var arraybuffer = await entry.async("arraybuffer") //Invalid non-string/buffer chunk
                     var nodebuffer = await entry.async("nodebuffer")
-                    await filemanager.createFile(this.application, s.fileId, path, nodebuffer)
+                    await Application.createFile(this.application, s.fileId, path, nodebuffer)
                     console.log("created: " + path)
                 }
                 catch(err)
