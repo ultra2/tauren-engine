@@ -46,7 +46,7 @@ class Engine {
     }
     initMongo() {
         return __awaiter(this, void 0, void 0, function* () {
-            var workingUrl = (process.env["OPENSHIFT_MONGODB_DB_URL"]) ? process.env["OPENSHIFT_MONGODB_DB_URL"] : process.env["WORKING_DB_URL"];
+            var workingUrl = (process.env["WORKING_DB_URL"]) ? process.env["WORKING_DB_URL"] : process.env["OPENSHIFT_MONGODB_DB_URL"];
             try {
                 this.db = yield mongodb.MongoClient.connect(workingUrl);
                 console.log("WORKING Mongo initialized!");
@@ -73,9 +73,7 @@ class Engine {
             this.router.get("/", function (req, res, next) {
                 return __awaiter(this, void 0, void 0, function* () {
                     try {
-                        var controller = new this.applications.studio.controllers.MainController();
-                        var result = controller.Test();
-                        res.send(result);
+                        res.send(this.info);
                         res.end();
                     }
                     catch (err) {

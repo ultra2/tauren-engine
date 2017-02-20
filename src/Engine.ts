@@ -79,25 +79,13 @@ export default class Engine {
         this.router = express.Router()
 
         this.router.get("/", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
-
-           
             try{
-                var controller = new this.applications.studio.controllers.MainController()
-                var result = controller.Test()
-
-                res.send(result)
+                res.send(this.info)
                 res.end()
-                
-                //return {status: 200, contentType: fileInfo.contentType, body: fileInfo.buffer}
             }
             catch(err){
                 throw Error(err.message)
             }
-
-           
-
-            //res.send("tauren-engine running!")
-            //res.end()
         }.bind(this))
 
         this.router.get('/debugurl', function (req: express.Request, res: express.Response, next: express.NextFunction) {
