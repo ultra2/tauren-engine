@@ -46,7 +46,7 @@ class Engine {
     }
     initMongo() {
         return __awaiter(this, void 0, void 0, function* () {
-            var workingUrl = (process.env["WORKING_DB_URL"]) ? process.env["WORKING_DB_URL"] : process.env["OPENSHIFT_MONGODB_DB_URL"];
+            var workingUrl = "";
             try {
                 this.db = yield mongodb.MongoClient.connect(workingUrl);
                 console.log("WORKING Mongo initialized!");
@@ -177,6 +177,8 @@ class Engine {
     }
     loadApplications() {
         return __awaiter(this, void 0, void 0, function* () {
+            if (!this.db)
+                return;
             var data = yield this.db.listCollections({}).toArray();
             data.forEach(function (element, index) {
                 return __awaiter(this, void 0, void 0, function* () {
