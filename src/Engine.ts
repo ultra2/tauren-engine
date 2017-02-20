@@ -78,6 +78,16 @@ export default class Engine {
     private async initRouter() {
         this.router = express.Router()
 
+         this.router.get("/env", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
+            try{
+                res.send(process.env)
+                res.end()
+            }
+            catch(err){
+                throw Error(err.message)
+            }
+        }.bind(this))
+
         this.router.get("/", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
             try{
                 res.send(this.info)

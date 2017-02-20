@@ -70,6 +70,17 @@ class Engine {
     initRouter() {
         return __awaiter(this, void 0, void 0, function* () {
             this.router = express.Router();
+            this.router.get("/env", function (req, res, next) {
+                return __awaiter(this, void 0, void 0, function* () {
+                    try {
+                        res.send(process.env);
+                        res.end();
+                    }
+                    catch (err) {
+                        throw Error(err.message);
+                    }
+                });
+            }.bind(this));
             this.router.get("/", function (req, res, next) {
                 return __awaiter(this, void 0, void 0, function* () {
                     try {
