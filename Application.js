@@ -11,7 +11,6 @@ const mongodb = require("mongodb");
 const mime = require("mime");
 const gridfs = require("gridfs-stream");
 const utils_1 = require('./utils');
-const DBContext_1 = require('./DBContext');
 const model = require('./model');
 class Application {
     constructor(application, engine) {
@@ -35,22 +34,22 @@ class Application {
     }
     listDocuments() {
         return __awaiter(this, void 0, void 0, function* () {
-            return yield DBContext_1.default.db.collection(this.name).find().toArray();
+            return yield this.engine.db.collection(this.name).find().toArray();
         });
     }
     listFiles() {
         return __awaiter(this, void 0, void 0, function* () {
-            return yield DBContext_1.default.db.collection(this.name + ".files").find().toArray();
+            return yield this.engine.db.collection(this.name + ".files").find().toArray();
         });
     }
     listChunks() {
         return __awaiter(this, void 0, void 0, function* () {
-            return yield DBContext_1.default.db.collection(this.name + ".chunks").find().toArray();
+            return yield this.engine.db.collection(this.name + ".chunks").find().toArray();
         });
     }
     loadDocument(path) {
         return __awaiter(this, void 0, void 0, function* () {
-            var result = yield DBContext_1.default.db.collection(this.name).findOne({ _id: path });
+            var result = yield this.engine.db.collection(this.name).findOne({ _id: path });
             result = JSON.stringify(result).replace(/\*/g, '.');
             return JSON.parse(result);
         });
@@ -59,15 +58,15 @@ class Application {
         return __awaiter(this, void 0, void 0, function* () {
             body = JSON.stringify(body).replace(/\./g, '*');
             body = JSON.parse(body);
-            return yield DBContext_1.default.db.collection(this.name).update({ _id: path }, body, { upsert: true, w: 1 });
+            return yield this.engine.db.collection(this.name).update({ _id: path }, body, { upsert: true, w: 1 });
         });
     }
     uploadFileOrFolder(path, data) {
         return __awaiter(this, void 0, void 0, function* () {
-            var client = new model.Client(yield DBContext_1.default.db.collection(this.name).findOne({ _id: "client" }));
+            var client = new model.Client(yield this.engine.db.collection(this.name).findOne({ _id: "client" }));
             var s = client.findOrCreateFileStub(path);
             if (s.stubNew) {
-                yield DBContext_1.default.db.collection(this.name).updateOne({ _id: "client" }, client, { w: 1, checkKeys: false });
+                yield this.engine.db.collection(this.name).updateOne({ _id: "client" }, client, { w: 1, checkKeys: false });
             }
             if (s.stubType == "folder")
                 return s;
@@ -79,7 +78,7 @@ class Application {
     }
     createFile(id, path, data) {
         return __awaiter(this, void 0, void 0, function* () {
-            var gfs = gridfs(DBContext_1.default.db, mongodb);
+            var gfs = gridfs(this.engine.db, mongodb);
             var writestream = gfs.createWriteStream({
                 _id: id,
                 filename: id,
@@ -91,13 +90,13 @@ class Application {
     }
     loadFile(path) {
         return __awaiter(this, void 0, void 0, function* () {
-            var client = new model.Client(yield DBContext_1.default.db.collection(this.name).findOne({ _id: "client" }));
+            var client = new model.Client(yield this.engine.db.collection(this.name).findOne({ _id: "client" }));
             var data = client.findOrCreateFileStub(path);
             if (data == null) {
                 throw Error("not found");
             }
-            var filedoc = yield DBContext_1.default.db.collection(this.name + ".files").findOne({ '_id': data.fileId });
-            var gfs = gridfs(DBContext_1.default.db, mongodb);
+            var filedoc = yield this.engine.db.collection(this.name + ".files").findOne({ '_id': data.fileId });
+            var gfs = gridfs(this.engine.db, mongodb);
             var readstream = gfs.createReadStream({
                 _id: filedoc._id,
                 root: this.name
@@ -113,7 +112,7 @@ class Application {
     }
     deleteFile(id) {
         return __awaiter(this, void 0, void 0, function* () {
-            var gfs = gridfs(DBContext_1.default.db, mongodb);
+            var gfs = gridfs(this.engine.db, mongodb);
             gfs.remove({
                 _id: id,
                 root: this.name
@@ -124,15 +123,15 @@ class Application {
     }
     garbageFiles() {
         return __awaiter(this, void 0, void 0, function* () {
-            var client = new model.Client(yield DBContext_1.default.db.collection(this.name).findOne({ _id: "client" }));
+            var client = new model.Client(yield this.engine.db.collection(this.name).findOne({ _id: "client" }));
             var a = JSON.stringify(client._attachments);
             var b = a.split("_fileId\":\"");
             var c = b.map(function (value) {
                 return value.substr(0, 36);
             });
             var d = c.slice(1);
-            yield DBContext_1.default.db.collection(this.name + ".files").remove({ '_id': { $nin: d } });
-            yield DBContext_1.default.db.collection(this.name + ".chunks").remove({ 'files_id': { $nin: d } });
+            yield this.engine.db.collection(this.name + ".files").remove({ '_id': { $nin: d } });
+            yield this.engine.db.collection(this.name + ".chunks").remove({ 'files_id': { $nin: d } });
         });
     }
 }

@@ -8,7 +8,6 @@ import * as stream from "stream"
 import * as gridfs from "gridfs-stream"
 import * as JSZip from 'jszip'
 import Utils from './utils'
-import DBContext from './DBContext'
 import * as model from './model'
 import Engine from './Engine'
 
@@ -39,19 +38,19 @@ export default class Application {
     }
 
     public async listDocuments() {
-        return await DBContext.db.collection(this.name).find().toArray()
+        return await this.engine.db.collection(this.name).find().toArray()
     }
 
     public async listFiles() {
-        return await DBContext.db.collection(this.name + ".files").find().toArray()
+        return await this.engine.db.collection(this.name + ".files").find().toArray()
     }
 
     public async listChunks() {
-        return await DBContext.db.collection(this.name + ".chunks").find().toArray()
+        return await this.engine.db.collection(this.name + ".chunks").find().toArray()
     }
 
     public async loadDocument(path:string) {
-        var result = await DBContext.db.collection(this.name).findOne({ _id: path })
+        var result = await this.engine.db.collection(this.name).findOne({ _id: path })
         result = JSON.stringify(result).replace(/\*/g, '.');
         return JSON.parse(result);
     }
@@ -59,14 +58,14 @@ export default class Application {
     public async saveDocument(path:string, body:any) {
         body = JSON.stringify(body).replace(/\./g, '*');
         body = JSON.parse(body);
-        return await DBContext.db.collection(this.name).update({ _id: path }, body, {upsert: true, w: 1})
+        return await this.engine.db.collection(this.name).update({ _id: path }, body, {upsert: true, w: 1})
     }
 
     public async uploadFileOrFolder(path:string, data:any) : Promise<model.stubInfo> {
-        var client = new model.Client(await DBContext.db.collection(this.name).findOne({ _id: "client" }))
+        var client = new model.Client(await this.engine.db.collection(this.name).findOne({ _id: "client" }))
         var s = client.findOrCreateFileStub(path)
         if (s.stubNew){
-            await DBContext.db.collection(this.name).updateOne({ _id: "client" }, client, {w: 1, checkKeys: false})
+            await this.engine.db.collection(this.name).updateOne({ _id: "client" }, client, {w: 1, checkKeys: false})
         }
 
         if (s.stubType == "folder") return s
@@ -83,7 +82,7 @@ export default class Application {
     }
 
     public async createFile(id:string, path:string, data:any) : Promise<Object> {
-        var gfs = gridfs(DBContext.db, mongodb);
+        var gfs = gridfs(this.engine.db, mongodb);
         var writestream = gfs.createWriteStream({
             _id : id,
             filename : id,
@@ -94,15 +93,15 @@ export default class Application {
     }
 
     public async loadFile(path:string) : Promise<fileInfo> {
-        var client = new model.Client(await DBContext.db.collection(this.name).findOne({ _id: "client" }))
+        var client = new model.Client(await this.engine.db.collection(this.name).findOne({ _id: "client" }))
         var data = client.findOrCreateFileStub(path)
         if (data == null){
             throw Error("not found")
         }
 
-        var filedoc = await DBContext.db.collection(this.name + ".files").findOne({'_id': data.fileId})
+        var filedoc = await this.engine.db.collection(this.name + ".files").findOne({'_id': data.fileId})
 
-        var gfs = gridfs(DBContext.db, mongodb);
+        var gfs = gridfs(this.engine.db, mongodb);
         var readstream = gfs.createReadStream({
             _id : filedoc._id,
             root: this.name
@@ -118,7 +117,7 @@ export default class Application {
     }
 
     public async deleteFile(id:string) {
-        var gfs = gridfs(DBContext.db, mongodb);
+        var gfs = gridfs(this.engine.db, mongodb);
         gfs.remove({
             _id : id,
             root: this.name
@@ -128,7 +127,7 @@ export default class Application {
     }
 
     public async garbageFiles() {
-        var client = new model.Client(await DBContext.db.collection(this.name).findOne({ _id: "client" }))
+        var client = new model.Client(await this.engine.db.collection(this.name).findOne({ _id: "client" }))
         
         var a =JSON.stringify(client._attachments)
         var b = a.split("_fileId\":\"")
@@ -137,8 +136,8 @@ export default class Application {
         })
         var d = c.slice(1)
         
-        await DBContext.db.collection(this.name + ".files").remove({'_id': {$nin: d}})
-        await DBContext.db.collection(this.name + ".chunks").remove({'files_id': {$nin: d}})
+        await this.engine.db.collection(this.name + ".files").remove({'_id': {$nin: d}})
+        await this.engine.db.collection(this.name + ".chunks").remove({'files_id': {$nin: d}})
     }
 }
 

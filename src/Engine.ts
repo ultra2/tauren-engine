@@ -1,20 +1,194 @@
 /// <reference path="_all.d.ts" />
 "use strict";
 
+import * as express from "express"
+import * as bodyParser from "body-parser"
+import * as request from "request"
 import * as uuid from "node-uuid"
-import DBContext from './DBContext'
+import * as mongodb from "mongodb"
 import Application from './Application'
 
 export default class Engine {
 
+    public db: mongodb.Db;
+    public dbTpl: mongodb.Db;
     public applications: Object
+    public router: express.Router
+    public app: express.Application
 
     constructor() {
         this.applications = {}
     }
 
+    public async run() {
+        await this.initMongo()
+        await this.loadApplications()
+        await this.initRouter()
+        await this.initApp()
+    }
+
+    private async initApp() {
+        this.app = express()
+
+        this.app.use(bodyParser.json({ type: 'application/json', limit: '5mb' }))  // parse various different custom JSON types as JSON    
+        this.app.use(bodyParser.raw({ type: 'application/vnd.custom-type' })) // parse some custom thing into a Buffer      
+        this.app.use(bodyParser.text({ type: 'text/*', limit: '5mb' })) // body as string
+        //this.app.use(bodyParser.urlencoded({limit: '5mb'})); // parse body if mime "application/x-www-form-urlencoded"
+        this.app.use(this.router)
+        // catch 404 and forward to error handler
+        this.app.use(function (err: any, req: express.Request, res: express.Response, next: express.NextFunction) {
+            var error = new Error("Not Found");
+            err.status = 404;
+            next(err);
+        });
+
+        var port = process.env.PORT || process.env.OPENSHIFT_NODEJS_PORT || 8080
+        var ip   = process.env.IP   || process.env.OPENSHIFT_NODEJS_IP || '0.0.0.0'
+
+        this.app.listen(port, ip, function() {
+            console.log('Express started on %s:%d ...', ip, port);
+        });
+    }
+
+    private async initMongo() {
+        var workingUrl = (process.env["OPENSHIFT_MONGODB_DB_URL"]) ? process.env["OPENSHIFT_MONGODB_DB_URL"] : process.env["WORKING_DB_URL"];
+        try {
+            this.db = await mongodb.MongoClient.connect(workingUrl);
+            console.log("WORKING Mongo initialized!")
+        }
+        catch (err) {
+            console.log('WORKING Mongo error: ', err.message);
+        }
+
+        var templateUrl = "mongodb://admin:Leonardo19770206Z@ds117189.mlab.com:17189/ide";
+        try {
+            this.dbTpl = await mongodb.MongoClient.connect(templateUrl);
+            console.log("TEMPLATE Mongo initialized!")
+        }
+        catch (err) {
+            console.log('TEMPLATE Mongo error: ', err.message);
+        }
+    }
+
+    private async initRouter() {
+        this.router = express.Router()
+
+        this.router.get("/", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
+
+           
+            try{
+                var controller = new this.applications.studio.controllers.MainController()
+                var result = controller.Test()
+
+                res.send(result)
+                res.end()
+                
+                //return {status: 200, contentType: fileInfo.contentType, body: fileInfo.buffer}
+            }
+            catch(err){
+                throw Error(err.message)
+            }
+
+           
+
+            //res.send("tauren-engine running!")
+            //res.end()
+        }.bind(this))
+
+        this.router.get('/debugurl', function (req: express.Request, res: express.Response, next: express.NextFunction) {
+            request('http://localhost:9229/json/list', function (error, response, body) {
+                try{
+                    var url = JSON.parse(body)[0].devtoolsFrontendUrl
+                    url = url.replace("https://chrome-devtools-frontend.appspot.com", "chrome-devtools://devtools/remote")
+                    url = url.replace("localhost:9229", "nodejs-ex-debug-tauren.44fs.preview.openshiftapps.com")
+                    res.send(url)
+                    res.end()
+                }
+                catch(error){
+                    res.send(error)
+                }
+            })
+        });
+
+        // this.router.get("/:application", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
+        //      var application = req.params["application"]
+        //      res.send(application)
+        //      res.end()
+
+             //Ez gond lehet az OpenShift-en, mert a root-bol vissza kell adjon valamit az app 
+             //res.status(301)
+             //res.setHeader("Location", "/" + application + "/client/loadFile/index.html")
+             //res.end()
+        // });
+
+        this.router.get('/:application/:controller/:method/:url(*)?', async function (req: express.Request, res: express.Response, next: express.NextFunction) {
+            console.log("get " + req.originalUrl)
+            var application = req.params["application"]
+            var controller = req.params["controller"]
+            var method = req.params["method"]
+            var url = req.params["url"]
+            try {
+                var app = this.applications[application]
+                 if (!app){
+                    res.status(404)
+                    res.end()
+                    return
+                }
+                var ctrl = app.controllers[controller+"Controller"]
+                if (!ctrl){
+                    res.status(404)
+                    res.end()
+                    return
+                }
+                var ctrl = new ctrl()
+                var result = await ctrl[method](url, req.query)
+                res.status(result.status)
+                res.setHeader("Content-Type", result.contentType)
+                res.send(result.body)
+            }
+            catch (err) {
+                console.log(err)
+                res.status(500)
+                res.send(err.message)
+            }
+        }.bind(this))
+
+        this.router.post('/:application/:controller/:method/:url(*)?', async function (req: express.Request, res: express.Response, next: express.NextFunction) {
+            console.log("post " + req.originalUrl)
+            var application = req.params["application"]
+            var controller = req.params["controller"]
+            var method = req.params["method"]
+            var url = req.params["url"]
+            var body = req["body"]
+            try {
+                var app = this.applications[application]
+                 if (!app){
+                    res.status(404)
+                    res.end()
+                    return
+                }
+                var ctrl = app.controllers[controller+"Controller"]
+                if (!ctrl){
+                    res.status(404)
+                    res.end()
+                    return
+                }
+                var ctrl = new ctrl()
+                var result = await ctrl[method](url, req.query, body)
+                res.status(result.status)
+                res.setHeader("Content-Type", result.contentType)
+                res.send(result.body)
+            }
+            catch (err) {
+                console.log(err)
+                res.status(500)
+                res.send(err.message)
+            }
+        }.bind(this))
+    }
+    
     public async loadApplications(): Promise<void> {
-        var data = await DBContext.db.listCollections({}).toArray()
+        var data = await this.db.listCollections({}).toArray()
          
         data.forEach(async function(element, index){
             var name = element.name.split('.')[0]
@@ -31,14 +205,8 @@ export default class Engine {
 
         var fileId = uuid.v1()
         
-        await DBContext.db.collection(name).insertOne({
+        await this.db.collection(name).insertOne({
             _id: "client",
-            _attachments: {                        
-            }
-        }, {w: 1, checkKeys: false})
-
-        await DBContext.db.collection(name).insertOne({
-            _id: "server",
             _attachments: {                        
             }
         }, {w: 1, checkKeys: false})
@@ -49,8 +217,8 @@ export default class Engine {
     }
 
     public async deleteApplication(name:string) : Promise<void> {
-        await DBContext.db.collection(name).drop()
-        await DBContext.db.collection(name + ".files").drop()
-        await DBContext.db.collection(name + ".chunks").drop()
+        await this.db.collection(name).drop()
+        await this.db.collection(name + ".files").drop()
+        await this.db.collection(name + ".chunks").drop()
     }
 }
