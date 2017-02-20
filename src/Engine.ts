@@ -52,7 +52,7 @@ export default class Engine {
     }
 
     private async initMongo() {
-        var workingUrl = (process.env["OPENSHIFT_MONGODB_DB_URL"]) ? process.env["OPENSHIFT_MONGODB_DB_URL"] : process.env["WORKING_DB_URL"];
+        var workingUrl = (process.env["WORKING_DB_URL"]) ? process.env["WORKING_DB_URL"] : process.env["OPENSHIFT_MONGODB_DB_URL"];
         try {
             this.db = await mongodb.MongoClient.connect(workingUrl);
             console.log("WORKING Mongo initialized!")
