@@ -10,6 +10,7 @@ import Application from './Application'
 
 export default class Engine {
 
+    public info: Object
     public db: mongodb.Db;
     public dbTpl: mongodb.Db;
     public applications: Object
@@ -68,7 +69,11 @@ export default class Engine {
         catch (err) {
             console.log('TEMPLATE Mongo error: ', err.message);
         }
-    }
+
+        this.info = {
+            workingUrl: workingUrl
+        }
+    } 
 
     private async initRouter() {
         this.router = express.Router()

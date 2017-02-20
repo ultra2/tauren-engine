@@ -62,6 +62,9 @@ class Engine {
             catch (err) {
                 console.log('TEMPLATE Mongo error: ', err.message);
             }
+            this.info = {
+                workingUrl: workingUrl
+            };
         });
     }
     initRouter() {
