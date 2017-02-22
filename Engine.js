@@ -97,7 +97,7 @@ class Engine {
                     try {
                         var url = JSON.parse(body)[0].devtoolsFrontendUrl;
                         url = url.replace("https://chrome-devtools-frontend.appspot.com", "chrome-devtools://devtools/remote");
-                        url = url.replace("localhost:9229", "nodejs-ex-debug-tauren.44fs.preview.openshiftapps.com");
+                        url = url.replace("localhost:9229", process.env.APPLICATION_DEBUG_DOMAIN);
                         res.send(url);
                         res.end();
                     }
