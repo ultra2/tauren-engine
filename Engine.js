@@ -19,6 +19,7 @@ class Engine {
     }
     run() {
         return __awaiter(this, void 0, void 0, function* () {
+            this.info = {};
             yield this.initMongo();
             yield this.loadApplications();
             yield this.initRouter();
@@ -46,9 +47,14 @@ class Engine {
     }
     initMongo() {
         return __awaiter(this, void 0, void 0, function* () {
-            var workingUrl = "";
+            if (process.env.WORKING_DB_URL == null && process.env.DATABASE_SERVICE_NAME) {
+                var mongoServiceName = process.env.DATABASE_SERVICE_NAME.toUpperCase(), mongoHost = process.env[mongoServiceName + '_SERVICE_HOST'], mongoPort = process.env[mongoServiceName + '_SERVICE_PORT'], mongoDatabase = process.env[mongoServiceName + '_DATABASE'], mongoPassword = process.env[mongoServiceName + '_PASSWORD'], mongoUser = process.env[mongoServiceName + '_USER'];
+                if (mongoHost && mongoPort && mongoDatabase) {
+                    process.env.WORKING_DB_URL = 'mongodb://' + mongoUser + ':' + mongoPassword + '@' + mongoHost + ':' + mongoPort + '/' + mongoDatabase;
+                }
+            }
             try {
-                this.db = yield mongodb.MongoClient.connect(workingUrl);
+                this.db = yield mongodb.MongoClient.connect(process.env.WORKING_DB_URL);
                 console.log("WORKING Mongo initialized!");
             }
             catch (err) {
@@ -62,9 +68,7 @@ class Engine {
             catch (err) {
                 console.log('TEMPLATE Mongo error: ', err.message);
             }
-            this.info = {
-                workingUrl: workingUrl
-            };
+            this.info["workingUrl"] = process.env.WORKING_DB_URL;
         });
     }
     initRouter() {
@@ -95,9 +99,10 @@ class Engine {
             this.router.get('/debugurl', function (req, res, next) {
                 request('http://localhost:9229/json/list', function (error, response, body) {
                     try {
+                        var debugRouteHost = process.env.ENGINE_SERVICE_NAME + "-debug-" + process.env.OPENSHIFT_BUILD_NAMESPACE + ".44fs.preview.openshiftapps.com";
                         var url = JSON.parse(body)[0].devtoolsFrontendUrl;
                         url = url.replace("https://chrome-devtools-frontend.appspot.com", "chrome-devtools://devtools/remote");
-                        url = url.replace("localhost:9229", "http://engine-debug-" + process.env.OPENSHIFT_BUILD_NAMESPACE + ".44fs.preview.openshiftapps.com/");
+                        url = url.replace("localhost:9229", debugRouteHost);
                         res.send(url);
                         res.end();
                     }

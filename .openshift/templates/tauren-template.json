@@ -218,6 +218,14 @@
                 ],
                 "env": [
                   {
+                    "name": "ENGINE_SERVICE_NAME",
+                    "value": "${ENGINE_SERVICE_NAME}"
+                  },
+                  {
+                    "name": "WORKING_DB_URL",
+                    "value": "${WORKING_DB_URL}"
+                  },
+                  {
                     "name": "DATABASE_SERVICE_NAME",
                     "value": "${DATABASE_SERVICE_NAME}"
                   },
@@ -380,6 +388,11 @@
       "description": "Password for the database admin user.",
       "generate": "expression",
       "from": "[a-zA-Z0-9]{16}"
+    },
+    {
+      "name": "WORKING_DB_URL",
+      "displayName": "WORKING DB URL",
+      "description": "WORKING DB URL that will be used for accessing the database."
     }
   ]
 }
