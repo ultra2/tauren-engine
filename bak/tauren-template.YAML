@@ -1,0 +1,226 @@
+kind: Template
+apiVersion: v1
+metadata:
+    name: tauren-template
+    annotations:
+        description: tauren project
+        iconClass: icon-nodejs
+objects:
+    -   kind: Secret
+        apiVersion: v1
+        metadata: 
+            name: "${NAME}"
+        stringData: 
+            "database-user": "${DATABASE_USER}"
+            "database-password": "${DATABASE_PASSWORD}"
+            "database-admin-password": "${DATABASE_ADMIN_PASSWORD}"
+
+    -   kind: Service
+        apiVersion: v1
+        metadata: 
+            name: "${NAME}"
+            annotations: 
+                description: "Exposes and load balances the application pods"
+                "service.alpha.openshift.io/dependencies": "[{\"name\": \"${DATABASE_SERVICE_NAME}\", \"kind\": \"Service\"}]"
+            spec: 
+                ports: 
+                -   name: web
+                    port: 8080
+                    targetPort: 8080
+                selector: 
+                    name: "${NAME}"
+
+    -   kind: Route
+        apiVersion: v1
+        metadata: 
+            name: "${NAME}"
+        spec: 
+            host: "${APPLICATION_DOMAIN}"
+            to: 
+                kind: Service
+                name: "${NAME}"
+
+    -   kind: ImageStream
+        apiVersion: v1
+        metadata:
+            name: "${NAME}"
+            
+    -   kind: BuildConfig
+        apiVersion: v1
+        metadata:
+            name: "${NAME}"
+        spec:
+            source:
+                type: Git
+                git:
+                    uri: 'https://github.com/ultra2/tauren-engine.git'
+                    ref: master
+            strategy:
+                type: Source
+                sourceStrategy:
+                    from:
+                        kind: DockerImage
+                        name: 'ryanj/centos7-s2i-nodejs:6.3.1'
+            output:
+                to:
+                    kind: ImageStreamTag
+                    name: "${NAME}:latest"
+            triggers:
+                -   type: ImageChange
+                -   type: ConfigChange
+                -   type: GitHub
+                    github:
+                        secret: "${GITHUB_WEBHOOK_SECRET}"
+                -   type: Generic
+                    generic:
+                        secret: "${GENERIC_WEBHOOK_SECRET}"
+                    
+    -   kind: DeploymentConfig
+        apiVersion: v1
+        metadata:
+            name: mongodb
+        spec:
+            strategy:
+                type: Recreate
+                recreateParams:
+                    timeoutSeconds: 600
+            triggers:
+                -   type: ImageChange
+                    imageChangeParams:
+                        automatic: true
+                        containerNames:
+                            -   mongodb
+                        from:
+                            kind: ImageStreamTag
+                            namespace: openshift
+                            name: 'mongodb:3.2'
+                -   type: ConfigChange
+            replicas: 1
+            selector:
+                name: "${NAME}"
+            template:
+                metadata:
+                    name: "${NAME}"
+                spec:
+                    volumes:
+                        -   name: "${DATABASE_SERVICE_NAME}-data"
+                            persistentVolumeClaim:
+                                claimName: "${DATABASE_SERVICE_NAME}"
+                    containers:
+                        -   name: mongodb
+                            image: " "
+                            ports:
+                                -   containerPort: 27017
+                                    protocol: TCP
+                            env:
+                                -   name: DATABASE_SERVICE_NAME
+                                    value: "${DATABASE_SERVICE_NAME}"
+                                -   name: MONGODB_USER
+                                    valueFrom:
+                                        secretKeyRef:
+                                            name: "${NAME}"
+                                            key: "database-user"
+                                -   name: MONGODB_PASSWORD
+                                    valueFrom:
+                                        secretKeyRef:
+                                            name: "${NAME}"
+                                            key: "database-password"
+                                -   name: MONGODB_DATABASE
+                                    value: "${DATABASE_NAME}"
+                                -   name: MONGODB_ADMIN_PASSWORD
+                                    valueFrom:
+                                        secretKeyRef:
+                                            name: "${NAME}"
+                                            key: "database-admin-password"
+                            readinessProbe:
+                                initialDelaySeconds: 3
+                                timeoutSeconds: 3
+                                exec:
+                                    command:
+                                        -   /bin/sh
+                                        -   '-i'
+                                        -   '-c'
+                                        -   >-
+                                            mongo 127.0.0.1:27017/$MONGODB_DATABASE -u $MONGODB_USER -p
+                                            $MONGODB_PASSWORD --eval="quit()"
+                            livenessProbe:
+                                initialDelaySeconds: 30
+                                timeoutSeconds: 3
+                                tcpSocket:
+                                    port: 27017
+                            resources:
+                                limits:
+                                    memory: 512Mi
+                            volumeMounts:
+                                -   name: "${DATABASE_SERVICE_NAME}-data"
+                                    mountPath: /var/lib/mongodb/data
+
+
+    -   kind: PersistentVolumeClaim
+        apiVersion: v1
+        metadata: 
+            name: "${DATABASE_SERVICE_NAME}"
+        spec: 
+            accessModes: 
+                -   ReadWriteOnce
+            resources: 
+                requests: 
+                    storage: "${VOLUME_CAPACITY}"           
+
+parameters: 
+    -   name: NAME
+        displayName: Name
+        description: "The name assigned to all of the frontend objects defined in this template."
+        required: true
+        value: "tauren-engine"
+
+    -   name: NAMESPACE
+        displayName: Namespace
+        description: "The Tauren Namespace where the ImageStream resides."
+        required: true
+        value: tauren
+
+    -   name: APPLICATION_DOMAIN
+        displayName: "Application Hostname"
+        description: "The exposed hostname that will route to the Node.js service, if left blank a value will be defaulted."
+        value: ""
+
+    -   name: GITHUB_WEBHOOK_SECRET
+        displayName: "GitHub Webhook Secret"
+        description: "A secret string used to configure the GitHub webhook."
+        generate: expression
+        from: "[a-zA-Z0-9]{40}"
+
+    -   name: GENERIC_WEBHOOK_SECRET
+        displayName: "Generic Webhook Secret"
+        description: "A secret string used to configure the Generic webhook."
+        generate: expression
+        from: "[a-zA-Z0-9]{40}"
+
+    -   name: DATABASE_SERVICE_NAME
+        displayName: "Database Service Name"
+        required: true
+        value: mongodb
+
+    -   name: DATABASE_USER
+        displayName: "MongoDB Username"
+        description: "Username for MongoDB user that will be used for accessing the database."
+        generate: expression
+        from: "user[A-Z0-9]{3}"
+
+    -   name: DATABASE_PASSWORD
+        displayName: "MongoDB Password"
+        description: "Password for the MongoDB user."
+        generate: expression
+        from: "[a-zA-Z0-9]{16}"
+
+    -   name: DATABASE_NAME
+        displayName: "Database Name"
+        required: true
+        value: sampledb
+
+    -   name: DATABASE_ADMIN_PASSWORD
+        displayName: "Database Administrator Password"
+        description: "Password for the database admin user."
+        generate: expression
+        from: "[a-zA-Z0-9]{16}"
