@@ -74,6 +74,7 @@ class Engine {
     }
     updateStudio() {
         return __awaiter(this, void 0, void 0, function* () {
+            this.info["studioUpdated"] = false;
             if (process.env.WORKING_DB_URL == this.templateUrl)
                 return;
             if (this.db == null)
@@ -89,6 +90,7 @@ class Engine {
             yield this.db.collection("studio.files").insertMany(files);
             var chunks = yield this.dbTpl.collection("studio.chunks").find().toArray();
             yield this.db.collection("studio.chunks").insertMany(chunks);
+            this.info["studioUpdated"] = true;
         });
     }
     initRouter() {
@@ -119,7 +121,7 @@ class Engine {
             this.router.get("/updateStudio", function (req, res, next) {
                 return __awaiter(this, void 0, void 0, function* () {
                     try {
-                        this.updateStudio();
+                        yield this.updateStudio();
                         res.send(this.info);
                         res.end();
                     }

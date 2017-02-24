@@ -90,6 +90,8 @@ export default class Engine {
     } 
 
     private async updateStudio(){
+        this.info["studioUpdated"] = false
+
         if (process.env.WORKING_DB_URL == this.templateUrl) return
         if (this.db == null) return
         if (this.dbTpl == null) return
@@ -106,6 +108,8 @@ export default class Engine {
 
         var chunks = await this.dbTpl.collection("studio.chunks").find().toArray()
         await this.db.collection("studio.chunks").insertMany(chunks)
+
+        this.info["studioUpdated"] = true
     }
 
     private async initRouter() {
@@ -133,7 +137,7 @@ export default class Engine {
 
         this.router.get("/updateStudio", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
             try{
-                this.updateStudio()
+                await this.updateStudio()
                 res.send(this.info)
                 res.end()
             }

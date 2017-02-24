@@ -27,7 +27,42 @@
         "database-admin-password": "${DATABASE_ADMIN_PASSWORD}"
       }
     },
-     {
+    {
+      "kind": "PersistentVolumeClaim",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "${DATABASE_SERVICE_NAME}"
+      },
+      "spec": {
+        "accessModes": [
+          "ReadWriteOnce"
+        ],
+        "resources": {
+          "requests": {
+            "storage": "${VOLUME_CAPACITY}"
+          }
+        }
+      }
+    },
+    {
+      "kind": "ImageStream",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "mongo"
+      },
+      "spec": {
+        "tags": [
+          {
+            "name": "latest",
+            "from": {
+              "kind": "DockerImage",
+              "name": "mongo"
+            }
+          }
+        ]
+      }
+    },
+    {
       "kind": "DeploymentConfig",
       "apiVersion": "v1",
       "metadata": {
@@ -50,8 +85,7 @@
               ],
               "from": {
                 "kind": "ImageStreamTag",
-                "namespace": "openshift",
-                "name": "mongodb:3.2"
+                "name": "mongo"
               }
             }
           },
@@ -161,59 +195,21 @@
       "kind": "Service",
       "apiVersion": "v1",
       "metadata": {
-        "name": "${ENGINE_SERVICE_NAME}",
+        "name": "${DATABASE_SERVICE_NAME}",
         "annotations": {
-          "description": "Exposes and load balances the application pods",
-          "service.alpha.openshift.io/dependencies": "[{\"name\": \"${DATABASE_SERVICE_NAME}\", \"kind\": \"Service\"}]"
+          "description": "Exposes the database server"
         }
       },
       "spec": {
         "ports": [
           {
-            "name": "web",
-            "port": 8080,
-            "targetPort": 8080
-          },
-          {
-            "name": "debug",
-            "port": 9229,
-            "targetPort": 9229
+            "name": "mongodb",
+            "port": 27017,
+            "targetPort": 27017
           }
         ],
         "selector": {
-          "name": "${ENGINE_SERVICE_NAME}"
-        }
-      }
-    },
-    {
-      "kind": "Route",
-      "apiVersion": "v1",
-      "metadata": {
-        "name": "${ENGINE_SERVICE_NAME}"
-      },
-      "spec": {
-        "to": {
-          "kind": "Service",
-          "name": "${ENGINE_SERVICE_NAME}"
-        },
-        "port": {
-          "targetPort": "web"
-        }
-      }
-    },
-    {
-      "kind": "Route",
-      "apiVersion": "v1",
-      "metadata": {
-        "name": "${ENGINE_SERVICE_NAME}-debug"
-      },
-      "spec": {
-        "to": {
-          "kind": "Service",
-          "name": "${ENGINE_SERVICE_NAME}"
-        },
-        "port": {
-          "targetPort": "debug"
+          "name": "${DATABASE_SERVICE_NAME}"
         }
       }
     },
@@ -292,6 +288,66 @@
             "type": "ConfigChange"
           }
         ]
+      }
+    },
+    {
+      "kind": "Service",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "${ENGINE_SERVICE_NAME}",
+        "annotations": {
+          "description": "Exposes and load balances the application pods",
+          "service.alpha.openshift.io/dependencies": "[{\"name\": \"${DATABASE_SERVICE_NAME}\", \"kind\": \"Service\"}]"
+        }
+      },
+      "spec": {
+        "ports": [
+          {
+            "name": "web",
+            "port": 8080,
+            "targetPort": 8080
+          },
+          {
+            "name": "debug",
+            "port": 9229,
+            "targetPort": 9229
+          }
+        ],
+        "selector": {
+          "name": "${ENGINE_SERVICE_NAME}"
+        }
+      }
+    },
+    {
+      "kind": "Route",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "${ENGINE_SERVICE_NAME}"
+      },
+      "spec": {
+        "to": {
+          "kind": "Service",
+          "name": "${ENGINE_SERVICE_NAME}"
+        },
+        "port": {
+          "targetPort": "web"
+        }
+      }
+    },
+    {
+      "kind": "Route",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "${ENGINE_SERVICE_NAME}-debug"
+      },
+      "spec": {
+        "to": {
+          "kind": "Service",
+          "name": "${ENGINE_SERVICE_NAME}"
+        },
+        "port": {
+          "targetPort": "debug"
+        }
       }
     },
     {
@@ -417,47 +473,7 @@
           }
         }
       }
-    },
-    {
-      "kind": "PersistentVolumeClaim",
-      "apiVersion": "v1",
-      "metadata": {
-        "name": "${DATABASE_SERVICE_NAME}"
-      },
-      "spec": {
-        "accessModes": [
-          "ReadWriteOnce"
-        ],
-        "resources": {
-          "requests": {
-            "storage": "${VOLUME_CAPACITY}"
-          }
-        }
-      }
-    },
-    {
-      "kind": "Service",
-      "apiVersion": "v1",
-      "metadata": {
-        "name": "${DATABASE_SERVICE_NAME}",
-        "annotations": {
-          "description": "Exposes the database server"
-        }
-      },
-      "spec": {
-        "ports": [
-          {
-            "name": "mongodb",
-            "port": 27017,
-            "targetPort": 27017
-          }
-        ],
-        "selector": {
-          "name": "${DATABASE_SERVICE_NAME}"
-        }
-      }
     }
-   
   ],
   "parameters": [
     {
