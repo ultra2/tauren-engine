@@ -27,6 +27,136 @@
         "database-admin-password": "${DATABASE_ADMIN_PASSWORD}"
       }
     },
+     {
+      "kind": "DeploymentConfig",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "${DATABASE_SERVICE_NAME}",
+        "annotations": {
+          "description": "Defines how to deploy the database"
+        }
+      },
+      "spec": {
+        "strategy": {
+          "type": "Recreate"
+        },
+        "triggers": [
+          {
+            "type": "ImageChange",
+            "imageChangeParams": {
+              "automatic": true,
+              "containerNames": [
+                "mongodb"
+              ],
+              "from": {
+                "kind": "ImageStreamTag",
+                "namespace": "openshift",
+                "name": "mongodb:3.2"
+              }
+            }
+          },
+          {
+            "type": "ConfigChange"
+          }
+        ],
+        "replicas": 1,
+        "selector": {
+          "name": "${DATABASE_SERVICE_NAME}"
+        },
+        "template": {
+          "metadata": {
+            "name": "${DATABASE_SERVICE_NAME}",
+            "labels": {
+              "name": "${DATABASE_SERVICE_NAME}"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "name": "mongodb",
+                "image": " ",
+                "ports": [
+                  {
+                    "containerPort": 27017
+                  }
+                ],
+                "env": [
+                  {
+                    "name": "MONGODB_USER",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "${ENGINE_SERVICE_NAME}",
+                        "key": "database-user"
+                      }
+                    }
+                  },
+                  {
+                    "name": "MONGODB_PASSWORD",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "${ENGINE_SERVICE_NAME}",
+                        "key": "database-password"
+                      }
+                    }
+                  },
+                  {
+                    "name": "MONGODB_DATABASE",
+                    "value": "${DATABASE_NAME}"
+                  },
+                  {
+                    "name": "MONGODB_ADMIN_PASSWORD",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "${ENGINE_SERVICE_NAME}",
+                        "key": "database-admin-password"
+                      }
+                    }
+                  }
+                ],
+                "readinessProbe": {
+                  "timeoutSeconds": 1,
+                  "initialDelaySeconds": 3,
+                  "exec": {
+                    "command": [
+                      "/bin/sh",
+                      "-i",
+                      "-c",
+                      "mongo 127.0.0.1:27017/$MONGODB_DATABASE -u $MONGODB_USER -p $MONGODB_PASSWORD --eval=\"quit()\""
+                    ]
+                  }
+                },
+                "livenessProbe": {
+                  "timeoutSeconds": 1,
+                  "initialDelaySeconds": 30,
+                  "tcpSocket": {
+                    "port": 27017
+                  }
+                },
+                "resources": {
+                  "limits": {
+                    "memory": "${MEMORY_MONGODB_LIMIT}"
+                  }
+                },
+                "volumeMounts": [
+                  {
+                    "name": "${DATABASE_SERVICE_NAME}-data",
+                    "mountPath": "/var/lib/mongodb/data"
+                  }
+                ]
+              }
+            ],
+            "volumes": [
+              {
+                "name": "${DATABASE_SERVICE_NAME}-data",
+                "persistentVolumeClaim": {
+                  "claimName": "${DATABASE_SERVICE_NAME}"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
     {
       "kind": "Service",
       "apiVersion": "v1",
@@ -326,137 +456,8 @@
           "name": "${DATABASE_SERVICE_NAME}"
         }
       }
-    },
-    {
-      "kind": "DeploymentConfig",
-      "apiVersion": "v1",
-      "metadata": {
-        "name": "${DATABASE_SERVICE_NAME}",
-        "annotations": {
-          "description": "Defines how to deploy the database"
-        }
-      },
-      "spec": {
-        "strategy": {
-          "type": "Recreate"
-        },
-        "triggers": [
-          {
-            "type": "ImageChange",
-            "imageChangeParams": {
-              "automatic": true,
-              "containerNames": [
-                "mongodb"
-              ],
-              "from": {
-                "kind": "ImageStreamTag",
-                "namespace": "openshift",
-                "name": "mongodb:3.2"
-              }
-            }
-          },
-          {
-            "type": "ConfigChange"
-          }
-        ],
-        "replicas": 1,
-        "selector": {
-          "name": "${DATABASE_SERVICE_NAME}"
-        },
-        "template": {
-          "metadata": {
-            "name": "${DATABASE_SERVICE_NAME}",
-            "labels": {
-              "name": "${DATABASE_SERVICE_NAME}"
-            }
-          },
-          "spec": {
-            "containers": [
-              {
-                "name": "mongodb",
-                "image": " ",
-                "ports": [
-                  {
-                    "containerPort": 27017
-                  }
-                ],
-                "env": [
-                  {
-                    "name": "MONGODB_USER",
-                    "valueFrom": {
-                      "secretKeyRef": {
-                        "name": "${ENGINE_SERVICE_NAME}",
-                        "key": "database-user"
-                      }
-                    }
-                  },
-                  {
-                    "name": "MONGODB_PASSWORD",
-                    "valueFrom": {
-                      "secretKeyRef": {
-                        "name": "${ENGINE_SERVICE_NAME}",
-                        "key": "database-password"
-                      }
-                    }
-                  },
-                  {
-                    "name": "MONGODB_DATABASE",
-                    "value": "${DATABASE_NAME}"
-                  },
-                  {
-                    "name": "MONGODB_ADMIN_PASSWORD",
-                    "valueFrom": {
-                      "secretKeyRef": {
-                        "name": "${ENGINE_SERVICE_NAME}",
-                        "key": "database-admin-password"
-                      }
-                    }
-                  }
-                ],
-                "readinessProbe": {
-                  "timeoutSeconds": 1,
-                  "initialDelaySeconds": 3,
-                  "exec": {
-                    "command": [
-                      "/bin/sh",
-                      "-i",
-                      "-c",
-                      "mongo 127.0.0.1:27017/$MONGODB_DATABASE -u $MONGODB_USER -p $MONGODB_PASSWORD --eval=\"quit()\""
-                    ]
-                  }
-                },
-                "livenessProbe": {
-                  "timeoutSeconds": 1,
-                  "initialDelaySeconds": 30,
-                  "tcpSocket": {
-                    "port": 27017
-                  }
-                },
-                "resources": {
-                  "limits": {
-                    "memory": "${MEMORY_MONGODB_LIMIT}"
-                  }
-                },
-                "volumeMounts": [
-                  {
-                    "name": "${DATABASE_SERVICE_NAME}-data",
-                    "mountPath": "/var/lib/mongodb/data"
-                  }
-                ]
-              }
-            ],
-            "volumes": [
-              {
-                "name": "${DATABASE_SERVICE_NAME}-data",
-                "persistentVolumeClaim": {
-                  "claimName": "${DATABASE_SERVICE_NAME}"
-                }
-              }
-            ]
-          }
-        }
-      }
     }
+   
   ],
   "parameters": [
     {

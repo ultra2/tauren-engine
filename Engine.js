@@ -22,7 +22,6 @@ class Engine {
     run() {
         return __awaiter(this, void 0, void 0, function* () {
             yield this.initMongo();
-            yield this.updateStudio();
             yield this.loadApplications();
             yield this.initRouter();
             yield this.initApp();
@@ -109,7 +108,17 @@ class Engine {
             this.router.get("/", function (req, res, next) {
                 return __awaiter(this, void 0, void 0, function* () {
                     try {
-                        debugger;
+                        res.send(this.info);
+                        res.end();
+                    }
+                    catch (err) {
+                        throw Error(err.message);
+                    }
+                });
+            }.bind(this));
+            this.router.get("/updateStudio", function (req, res, next) {
+                return __awaiter(this, void 0, void 0, function* () {
+                    try {
                         this.updateStudio();
                         res.send(this.info);
                         res.end();

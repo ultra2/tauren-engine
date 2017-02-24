@@ -123,7 +123,16 @@ export default class Engine {
 
         this.router.get("/", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
             try{
-                debugger
+                res.send(this.info)
+                res.end()
+            }
+            catch(err){
+                throw Error(err.message)
+            }
+        }.bind(this))
+
+        this.router.get("/updateStudio", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
+            try{
                 this.updateStudio()
                 res.send(this.info)
                 res.end()
