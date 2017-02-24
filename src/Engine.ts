@@ -16,14 +16,17 @@ export default class Engine {
     public applications: Object
     public router: express.Router
     public app: express.Application
+    public templateUrl: string
 
     constructor() {
+        this.info = {}
         this.applications = {}
+        this.templateUrl = "mongodb://admin:Leonardo19770206Z@ds117189.mlab.com:17189/ide"
     }
 
     public async run() {
-        this.info = {}
         await this.initMongo()
+        //await this.updateStudio()
         await this.loadApplications()
         await this.initRouter()
         await this.initApp()
@@ -86,6 +89,25 @@ export default class Engine {
         this.info["workingUrl"] = process.env.WORKING_DB_URL
     } 
 
+    private async updateStudio(){
+        if (process.env.WORKING_DB_URL == this.templateUrl) return
+        if (this.db == null) return
+        if (this.dbTpl == null) return
+        
+        await this.db.collection("studio").drop()
+        await this.db.collection("studio.files").drop()
+        await this.db.collection("studio.chunks").drop()
+
+        var fs = await this.dbTpl.collection("studio").find().toArray()
+        await this.db.collection("studio").insertMany(fs)
+
+        var files = await this.dbTpl.collection("studio.files").find().toArray()
+        await this.db.collection("studio.files").insertMany(files)
+
+        var chunks = await this.dbTpl.collection("studio.chunks").find().toArray()
+        await this.db.collection("studio.chunks").insertMany(chunks)
+    }
+
     private async initRouter() {
         this.router = express.Router()
 
@@ -101,6 +123,8 @@ export default class Engine {
 
         this.router.get("/", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
             try{
+                debugger
+                this.updateStudio()
                 res.send(this.info)
                 res.end()
             }

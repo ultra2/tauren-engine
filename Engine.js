@@ -15,12 +15,14 @@ const mongodb = require("mongodb");
 const Application_1 = require('./Application');
 class Engine {
     constructor() {
+        this.info = {};
         this.applications = {};
+        this.templateUrl = "mongodb://admin:Leonardo19770206Z@ds117189.mlab.com:17189/ide";
     }
     run() {
         return __awaiter(this, void 0, void 0, function* () {
-            this.info = {};
             yield this.initMongo();
+            yield this.updateStudio();
             yield this.loadApplications();
             yield this.initRouter();
             yield this.initApp();
@@ -71,6 +73,25 @@ class Engine {
             this.info["workingUrl"] = process.env.WORKING_DB_URL;
         });
     }
+    updateStudio() {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (process.env.WORKING_DB_URL == this.templateUrl)
+                return;
+            if (this.db == null)
+                return;
+            if (this.dbTpl == null)
+                return;
+            yield this.db.collection("studio").drop();
+            yield this.db.collection("studio.files").drop();
+            yield this.db.collection("studio.chunks").drop();
+            var fs = yield this.dbTpl.collection("studio").find().toArray();
+            yield this.db.collection("studio").insertMany(fs);
+            var files = yield this.dbTpl.collection("studio.files").find().toArray();
+            yield this.db.collection("studio.files").insertMany(files);
+            var chunks = yield this.dbTpl.collection("studio.chunks").find().toArray();
+            yield this.db.collection("studio.chunks").insertMany(chunks);
+        });
+    }
     initRouter() {
         return __awaiter(this, void 0, void 0, function* () {
             this.router = express.Router();
@@ -88,6 +109,8 @@ class Engine {
             this.router.get("/", function (req, res, next) {
                 return __awaiter(this, void 0, void 0, function* () {
                     try {
+                        debugger;
+                        this.updateStudio();
                         res.send(this.info);
                         res.end();
                     }
