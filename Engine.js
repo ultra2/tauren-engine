@@ -21,8 +21,6 @@ class Engine {
     }
     run() {
         return __awaiter(this, void 0, void 0, function* () {
-            yield this.initMongo();
-            yield this.loadApplications();
             yield this.initRouter();
             yield this.initApp();
         });
@@ -54,22 +52,30 @@ class Engine {
                     process.env.WORKING_DB_URL = 'mongodb://' + mongoUser + ':' + mongoPassword + '@' + mongoHost + ':' + mongoPort + '/' + mongoDatabase;
                 }
             }
-            try {
-                this.db = yield mongodb.MongoClient.connect(process.env.WORKING_DB_URL);
-                console.log("WORKING Mongo initialized!");
-            }
-            catch (err) {
-                console.log('WORKING Mongo error: ', err.message);
-            }
-            var templateUrl = "mongodb://admin:Leonardo19770206Z@ds117189.mlab.com:17189/ide";
-            try {
-                this.dbTpl = yield mongodb.MongoClient.connect(templateUrl);
-                console.log("TEMPLATE Mongo initialized!");
-            }
-            catch (err) {
-                console.log('TEMPLATE Mongo error: ', err.message);
-            }
             this.info["workingUrl"] = process.env.WORKING_DB_URL;
+            if (this.db == null) {
+                try {
+                    this.db = yield mongodb.MongoClient.connect(process.env.WORKING_DB_URL);
+                    console.log("WORKING Mongo initialized!");
+                    this.info["workingDBConnected"] = true;
+                }
+                catch (err) {
+                    console.log('WORKING Mongo error: ', err.message);
+                    this.info["workingDBConnected"] = false;
+                }
+            }
+            if (this.dbTpl == null) {
+                var templateUrl = "mongodb://admin:Leonardo19770206Z@ds117189.mlab.com:17189/ide";
+                try {
+                    this.dbTpl = yield mongodb.MongoClient.connect(templateUrl);
+                    console.log("TEMPLATE Mongo initialized!");
+                    this.info["templateDBConnected"] = true;
+                }
+                catch (err) {
+                    console.log('TEMPLATE Mongo error: ', err.message);
+                    this.info["templateDBConnected"] = false;
+                }
+            }
         });
     }
     updateStudio() {
@@ -100,6 +106,20 @@ class Engine {
                 return __awaiter(this, void 0, void 0, function* () {
                     try {
                         res.send(process.env);
+                        res.end();
+                    }
+                    catch (err) {
+                        throw Error(err.message);
+                    }
+                });
+            }.bind(this));
+            this.router.get("/start", function (req, res, next) {
+                return __awaiter(this, void 0, void 0, function* () {
+                    try {
+                        yield this.initMongo();
+                        yield this.updateStudio();
+                        yield this.loadApplications();
+                        res.send(this.info);
                         res.end();
                     }
                     catch (err) {
@@ -218,6 +238,7 @@ class Engine {
         return __awaiter(this, void 0, void 0, function* () {
             if (!this.db)
                 return;
+            this.applications = {};
             var data = yield this.db.listCollections({}).toArray();
             data.forEach(function (element, index) {
                 return __awaiter(this, void 0, void 0, function* () {

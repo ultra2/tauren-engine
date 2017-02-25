@@ -69,6 +69,24 @@
         }
       }
     },
+   {
+      "kind": "ImageStream",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "node"
+      },
+      "spec": {
+        "tags": [
+          {
+            "name": "latest",
+            "from": {
+              "kind": "DockerImage",
+              "name": "ryanj/centos7-s2i-nodejs:6.3.1"
+            }
+          }
+        ]
+      }
+    },
     {
       "kind": "ImageStream",
       "apiVersion": "v1",
@@ -102,8 +120,7 @@
           "sourceStrategy": {
             "from": {
               "kind": "ImageStreamTag",
-              "namespace": "${NAMESPACE}",
-              "name": "nodejs:4"
+              "name": "node:latest"
             },
             "env":  [
               {
@@ -138,10 +155,7 @@
               "secret": "${GENERIC_WEBHOOK_SECRET}"
             }
           }
-        ],
-        "postCommit": {
-          "script": "npm test"
-        }
+        ]
       }
     },
     {
@@ -322,7 +336,7 @@
               ],
               "from": {
                 "kind": "ImageStreamTag",
-                "namespace": "${NAMESPACE}",
+                "namespace": "openshift",
                 "name": "mongodb:3.2"
               }
             }
@@ -437,13 +451,6 @@
       "description": "The name assigned to all of the frontend objects defined in this template.",
       "required": true,
       "value": "tauren"
-    },
-    {
-      "name": "NAMESPACE",
-      "displayName": "Namespace",
-      "description": "The OpenShift Namespace where the ImageStream resides.",
-      "required": true,
-      "value": "openshift"
     },
     {
       "name": "MEMORY_LIMIT",

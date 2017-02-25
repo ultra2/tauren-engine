@@ -25,9 +25,6 @@ export default class Engine {
     }
 
     public async run() {
-        await this.initMongo()
-        //await this.updateStudio()
-        await this.loadApplications()
         await this.initRouter()
         await this.initApp()
     }
@@ -69,24 +66,32 @@ export default class Engine {
             }
         }
 
-        try {
-            this.db = await mongodb.MongoClient.connect(process.env.WORKING_DB_URL)
-            console.log("WORKING Mongo initialized!")
-        }
-        catch (err) { 
-            console.log('WORKING Mongo error: ', err.message)
-        }
-
-        var templateUrl = "mongodb://admin:Leonardo19770206Z@ds117189.mlab.com:17189/ide"
-        try {
-            this.dbTpl = await mongodb.MongoClient.connect(templateUrl)
-            console.log("TEMPLATE Mongo initialized!")
-        }
-        catch (err) {
-            console.log('TEMPLATE Mongo error: ', err.message)
-        }
-
         this.info["workingUrl"] = process.env.WORKING_DB_URL
+
+        if (this.db == null){
+            try {
+                this.db = await mongodb.MongoClient.connect(process.env.WORKING_DB_URL)
+                console.log("WORKING Mongo initialized!")
+                this.info["workingDBConnected"] = true
+            }
+            catch (err) { 
+                console.log('WORKING Mongo error: ', err.message)
+                this.info["workingDBConnected"] = false
+            }
+        }
+        
+        if (this.dbTpl == null){
+            var templateUrl = "mongodb://admin:Leonardo19770206Z@ds117189.mlab.com:17189/ide"
+            try {
+                this.dbTpl = await mongodb.MongoClient.connect(templateUrl)
+                console.log("TEMPLATE Mongo initialized!")
+                this.info["templateDBConnected"] = true
+            }
+            catch (err) {
+                console.log('TEMPLATE Mongo error: ', err.message)
+                this.info["templateDBConnected"] = false
+            }
+        }
     } 
 
     private async updateStudio(){
@@ -118,6 +123,19 @@ export default class Engine {
         this.router.get("/env", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
             try{
                 res.send(process.env)
+                res.end()
+            }
+            catch(err){
+                throw Error(err.message)
+            }
+        }.bind(this))
+
+        this.router.get("/start", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
+            try{
+                await this.initMongo()
+                await this.updateStudio()
+                await this.loadApplications()
+                res.send(this.info)
                 res.end()
             }
             catch(err){
@@ -242,8 +260,8 @@ export default class Engine {
     
     public async loadApplications(): Promise<void> {
         if (!this.db) return
-        var data = await this.db.listCollections({}).toArray()
-         
+        this.applications = {}
+        var data = await this.db.listCollections({}).toArray() 
         data.forEach(async function(element, index){
             var name = element.name.split('.')[0]
             if (name == "system") return
