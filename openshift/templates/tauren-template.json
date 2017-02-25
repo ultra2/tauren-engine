@@ -28,8 +28,53 @@
       }
     },
     {
-      "kind": "PersistentVolumeClaim",
+      "kind": "ImageStream",
       "apiVersion": "v1",
+      "metadata": {
+        "name": "mongodb"
+      },
+      "spec": {
+        "tags": [
+          {
+            "name": "latest",
+            "from": {
+              "kind": "DockerImage",
+              "name": "registry.access.redhat.com/rhscl/mongodb-32-rhel7:latest"//"centos/mongodb-32-centos7:latest"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "creationTimestamp": null,
+        "name": "${DATABASE_SERVICE_NAME}"
+      },
+      "spec": {
+        "ports": [
+          {
+            "name": "mongo",
+            "nodePort": 0,
+            "port": 27017,
+            "protocol": "TCP",
+            "targetPort": 27017
+          }
+        ],
+        "selector": {
+          "name": "${DATABASE_SERVICE_NAME}"
+        },
+        "sessionAffinity": "None",
+        "type": "ClusterIP"
+      },
+      "status": {
+        "loadBalancer": {}
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "PersistentVolumeClaim",
       "metadata": {
         "name": "${DATABASE_SERVICE_NAME}"
       },
@@ -45,61 +90,23 @@
       }
     },
     {
-      "kind": "ImageStream",
       "apiVersion": "v1",
-      "metadata": {
-        "name": "mongo"
-      },
-      "spec": {
-        "tags": [
-          {
-            "name": "latest",
-            "from": {
-              "kind": "DockerImage",
-              "name": "mongo"
-            }
-          }
-        ]
-      }
-    },
-    {
       "kind": "DeploymentConfig",
-      "apiVersion": "v1",
       "metadata": {
-        "name": "${DATABASE_SERVICE_NAME}",
-        "annotations": {
-          "description": "Defines how to deploy the database"
-        }
+        "creationTimestamp": null,
+        "name": "${DATABASE_SERVICE_NAME}"
       },
       "spec": {
-        "strategy": {
-          "type": "Recreate"
-        },
-        "triggers": [
-          {
-            "type": "ImageChange",
-            "imageChangeParams": {
-              "automatic": true,
-              "containerNames": [
-                "mongodb"
-              ],
-              "from": {
-                "kind": "ImageStreamTag",
-                "name": "mongo"
-              }
-            }
-          },
-          {
-            "type": "ConfigChange"
-          }
-        ],
         "replicas": 1,
         "selector": {
           "name": "${DATABASE_SERVICE_NAME}"
         },
+        "strategy": {
+          "type": "Recreate"
+        },
         "template": {
           "metadata": {
-            "name": "${DATABASE_SERVICE_NAME}",
+            "creationTimestamp": null,
             "labels": {
               "name": "${DATABASE_SERVICE_NAME}"
             }
@@ -107,20 +114,14 @@
           "spec": {
             "containers": [
               {
-                "name": "mongodb",
-                "image": " ",
-                "ports": [
-                  {
-                    "containerPort": 27017
-                  }
-                ],
+                "capabilities": {},
                 "env": [
                   {
                     "name": "MONGODB_USER",
                     "valueFrom": {
                       "secretKeyRef": {
-                        "name": "${ENGINE_SERVICE_NAME}",
-                        "key": "database-user"
+                        "key": "database-user",
+                        "name": "${DATABASE_SERVICE_NAME}"
                       }
                     }
                   },
@@ -128,28 +129,42 @@
                     "name": "MONGODB_PASSWORD",
                     "valueFrom": {
                       "secretKeyRef": {
-                        "name": "${ENGINE_SERVICE_NAME}",
-                        "key": "database-password"
+                        "key": "database-password",
+                        "name": "${DATABASE_SERVICE_NAME}"
                       }
                     }
-                  },
-                  {
-                    "name": "MONGODB_DATABASE",
-                    "value": "${DATABASE_NAME}"
                   },
                   {
                     "name": "MONGODB_ADMIN_PASSWORD",
                     "valueFrom": {
                       "secretKeyRef": {
-                        "name": "${ENGINE_SERVICE_NAME}",
-                        "key": "database-admin-password"
+                        "key": "database-admin-password",
+                        "name": "${DATABASE_SERVICE_NAME}"
                       }
                     }
+                  },
+                  {
+                    "name": "MONGODB_DATABASE",
+                    "value": "${MONGODB_DATABASE}"
+                  }
+                ],
+                "image": " ",
+                "imagePullPolicy": "IfNotPresent",
+                "livenessProbe": {
+                  "initialDelaySeconds": 30,
+                  "tcpSocket": {
+                    "port": 27017
+                  },
+                  "timeoutSeconds": 1
+                },
+                "name": "mongodb",
+                "ports": [
+                  {
+                    "containerPort": 27017,
+                    "protocol": "TCP"
                   }
                 ],
                 "readinessProbe": {
-                  "timeoutSeconds": 1,
-                  "initialDelaySeconds": 3,
                   "exec": {
                     "command": [
                       "/bin/sh",
@@ -157,28 +172,30 @@
                       "-c",
                       "mongo 127.0.0.1:27017/$MONGODB_DATABASE -u $MONGODB_USER -p $MONGODB_PASSWORD --eval=\"quit()\""
                     ]
-                  }
-                },
-                "livenessProbe": {
-                  "timeoutSeconds": 1,
-                  "initialDelaySeconds": 30,
-                  "tcpSocket": {
-                    "port": 27017
-                  }
+                  },
+                  "initialDelaySeconds": 3,
+                  "timeoutSeconds": 1
                 },
                 "resources": {
                   "limits": {
-                    "memory": "${MEMORY_MONGODB_LIMIT}"
+                    "memory": "${MEMORY_LIMIT}"
                   }
                 },
+                "securityContext": {
+                  "capabilities": {},
+                  "privileged": false
+                },
+                "terminationMessagePath": "/dev/termination-log",
                 "volumeMounts": [
                   {
-                    "name": "${DATABASE_SERVICE_NAME}-data",
-                    "mountPath": "/var/lib/mongodb/data"
+                    "mountPath": "/var/lib/mongodb/data",
+                    "name": "${DATABASE_SERVICE_NAME}-data"
                   }
                 ]
               }
             ],
+            "dnsPolicy": "ClusterFirst",
+            "restartPolicy": "Always",
             "volumes": [
               {
                 "name": "${DATABASE_SERVICE_NAME}-data",
@@ -188,30 +205,29 @@
               }
             ]
           }
-        }
-      }
-    },
-    {
-      "kind": "Service",
-      "apiVersion": "v1",
-      "metadata": {
-        "name": "${DATABASE_SERVICE_NAME}",
-        "annotations": {
-          "description": "Exposes the database server"
-        }
-      },
-      "spec": {
-        "ports": [
+        },
+        "triggers": [
           {
-            "name": "mongodb",
-            "port": 27017,
-            "targetPort": 27017
+            "imageChangeParams": {
+              "automatic": true,
+              "containerNames": [
+                "mongodb"
+              ],
+              "from": {
+                "kind": "ImageStreamTag",
+                "name": "mongodb:latest",
+                "namespace": "openshift"
+              },
+              "lastTriggeredImage": ""
+            },
+            "type": "ImageChange"
+          },
+          {
+            "type": "ConfigChange"
           }
-        ],
-        "selector": {
-          "name": "${DATABASE_SERVICE_NAME}"
-        }
-      }
+        ]
+      },
+      "status": {}
     },
     {
       "kind": "ImageStream",
