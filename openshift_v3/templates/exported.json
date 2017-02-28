@@ -1,0 +1,1270 @@
+{
+    "kind": "Template",
+    "apiVersion": "v1",
+    "metadata": {
+        "name": "my_template",
+        "creationTimestamp": null
+    },
+    "objects": [
+        {
+            "kind": "BuildConfig",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "tauren",
+                "creationTimestamp": null,
+                "labels": {
+                    "app": "tauren",
+                    "template": "tauren"
+                },
+                "annotations": {
+                    "description": "Defines how to build the application"
+                }
+            },
+            "spec": {
+                "triggers": [
+                    {
+                        "type": "ImageChange",
+                        "imageChange": {}
+                    },
+                    {
+                        "type": "ConfigChange"
+                    },
+                    {
+                        "type": "GitHub",
+                        "github": {
+                            "secret": "rnBALl0xaPuhVkpsOy3oXXOO1TMPKbvV6vshupIU"
+                        }
+                    },
+                    {
+                        "type": "Generic",
+                        "generic": {
+                            "secret": "xDyrVknePef320bYGq44FTyBRG4PK6xSMAaTI7Yg"
+                        }
+                    }
+                ],
+                "runPolicy": "Serial",
+                "source": {
+                    "type": "Git",
+                    "git": {
+                        "uri": "https://github.com/ultra2/tauren-engine.git",
+                        "ref": "master"
+                    }
+                },
+                "strategy": {
+                    "type": "Source",
+                    "sourceStrategy": {
+                        "from": {
+                            "kind": "ImageStreamTag",
+                            "name": "node:latest"
+                        },
+                        "env": [
+                            {
+                                "name": "NPM_MIRROR"
+                            }
+                        ]
+                    }
+                },
+                "output": {
+                    "to": {
+                        "kind": "ImageStreamTag",
+                        "name": "tauren:latest"
+                    }
+                },
+                "resources": {
+                    "limits": {
+                        "cpu": "1",
+                        "memory": "512Mi"
+                    },
+                    "requests": {
+                        "cpu": "100m",
+                        "memory": "256Mi"
+                    }
+                },
+                "postCommit": {}
+            },
+            "status": {
+                "lastVersion": 0
+            }
+        },
+        {
+            "kind": "Build",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "tauren-1",
+                "creationTimestamp": null,
+                "labels": {
+                    "app": "tauren",
+                    "buildconfig": "tauren",
+                    "openshift.io/build-config.name": "tauren",
+                    "openshift.io/build.start-policy": "Serial",
+                    "template": "tauren"
+                },
+                "annotations": {
+                    "openshift.io/build-config.name": "tauren",
+                    "openshift.io/build.number": "1",
+                    "openshift.io/build.pod-name": "tauren-1-build"
+                }
+            },
+            "spec": {
+                "serviceAccount": "builder",
+                "source": {
+                    "type": "Git",
+                    "git": {
+                        "uri": "https://github.com/ultra2/tauren-engine.git",
+                        "ref": "master"
+                    }
+                },
+                "revision": {
+                    "type": "Git",
+                    "git": {
+                        "commit": "f0478ccacfe3768c7e25fe5136645b743a4df264",
+                        "author": {
+                            "name": "Iván Zsolt",
+                            "email": "ivanzsolt@Ballo-MacBook.local"
+                        },
+                        "committer": {
+                            "name": "Iván Zsolt",
+                            "email": "ivanzsolt@Ballo-MacBook.local"
+                        },
+                        "message": "a"
+                    }
+                },
+                "strategy": {
+                    "type": "Source",
+                    "sourceStrategy": {
+                        "from": {
+                            "kind": "DockerImage",
+                            "name": "ryanj/centos7-s2i-nodejs@sha256:a4f9566c5474a89a23e65c2367306363e6eb2f77db3a0ab00ee5a4a097e2481a"
+                        },
+                        "env": [
+                            {
+                                "name": "NPM_MIRROR"
+                            }
+                        ]
+                    }
+                },
+                "output": {
+                    "to": {
+                        "kind": "ImageStreamTag",
+                        "name": "tauren:latest"
+                    },
+                    "pushSecret": {
+                        "name": "builder-dockercfg-cezex"
+                    }
+                },
+                "resources": {
+                     "limits": {
+                        "cpu": "1",
+                        "memory": "512Mi"
+                    },
+                    "requests": {
+                        "cpu": "100m",
+                        "memory": "256Mi"
+                    }
+                },
+                "postCommit": {},
+                "triggeredBy": [
+                    {
+                        "message": "Image change",
+                        "imageChangeBuild": {
+                            "imageID": "ryanj/centos7-s2i-nodejs@sha256:a4f9566c5474a89a23e65c2367306363e6eb2f77db3a0ab00ee5a4a097e2481a",
+                            "fromRef": {
+                                "kind": "ImageStreamTag",
+                                "name": "node:latest"
+                            }
+                        }
+                    }
+                ]
+            },
+            "status": {
+                "phase": "New",
+                "config": {
+                    "name": "tauren"
+                }
+            }
+        },
+        {
+            "kind": "ImageStream",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "node",
+                "generation": 2,
+                "creationTimestamp": null,
+                "labels": {
+                    "app": "tauren",
+                    "template": "tauren"
+                },
+                "annotations": {
+                    "openshift.io/image.dockerRepositoryCheck": "2017-02-26T00:33:32Z"
+                }
+            },
+            "spec": {
+                "tags": [
+                    {
+                        "name": "latest",
+                        "annotations": null,
+                        "from": {
+                            "kind": "DockerImage",
+                            "name": "172.30.47.227:5000/tauren10/node:latest"
+                        },
+                        "generation": 2,
+                        "importPolicy": {}
+                    }
+                ]
+            },
+            "status": {
+                "dockerImageRepository": ""
+            }
+        },
+        {
+            "kind": "ImageStream",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "tauren",
+                "generation": 1,
+                "creationTimestamp": null,
+                "labels": {
+                    "app": "tauren",
+                    "template": "tauren"
+                },
+                "annotations": {
+                    "description": "Keeps track of changes in the application image"
+                }
+            },
+            "spec": {
+                "tags": [
+                    {
+                        "name": "latest",
+                        "annotations": null,
+                        "from": {
+                            "kind": "DockerImage",
+                            "name": "172.30.47.227:5000/tauren10/tauren:latest"
+                        },
+                        "generation": null,
+                        "importPolicy": {}
+                    }
+                ]
+            },
+            "status": {
+                "dockerImageRepository": ""
+            }
+        },
+        {
+            "kind": "DeploymentConfig",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "mongodb",
+                "generation": 1,
+                "creationTimestamp": null,
+                "labels": {
+                    "app": "mongodb-persistent",
+                    "template": "mongodb-persistent-template"
+                }
+            },
+            "spec": {
+                "strategy": {
+                    "type": "Recreate",
+                    "recreateParams": {
+                        "timeoutSeconds": 600
+                    },
+                    "resources": {}
+                },
+                "triggers": [
+                    {
+                        "type": "ImageChange",
+                        "imageChangeParams": {
+                            "automatic": true,
+                            "containerNames": [
+                                "mongodb"
+                            ],
+                            "from": {
+                                "kind": "ImageStreamTag",
+                                "namespace": "openshift",
+                                "name": "mongodb:latest"
+                            }
+                        }
+                    },
+                    {
+                        "type": "ConfigChange"
+                    }
+                ],
+                "replicas": 1,
+                "test": false,
+                "selector": {
+                    "name": "mongodb"
+                },
+                "template": {
+                    "metadata": {
+                        "creationTimestamp": null,
+                        "labels": {
+                            "name": "mongodb"
+                        }
+                    },
+                    "spec": {
+                        "volumes": [
+                            {
+                                "name": "mongodb-data",
+                                "persistentVolumeClaim": {
+                                    "claimName": "mongodb"
+                                }
+                            }
+                        ],
+                        "containers": [
+                            {
+                                "name": "mongodb",
+                                "image": "registry.access.redhat.com/rhscl/mongodb-32-rhel7@sha256:a77e06e382563510abe2dbb6728bb37ad92046147860aa61e10b64549839e2c0",
+                                "ports": [
+                                    {
+                                        "containerPort": 27017,
+                                        "protocol": "TCP"
+                                    }
+                                ],
+                                "env": [
+                                    {
+                                        "name": "MONGODB_USER",
+                                        "value": "userBK3"
+                                    },
+                                    {
+                                        "name": "MONGODB_PASSWORD",
+                                        "value": "avEK556iQfVjxrLD"
+                                    },
+                                    {
+                                        "name": "MONGODB_DATABASE",
+                                        "value": "sampledb"
+                                    },
+                                    {
+                                        "name": "MONGODB_ADMIN_PASSWORD",
+                                        "value": "b83jQLCkLuJT3sEo"
+                                    }
+                                ],
+                                "resources": {
+                                    "limits": {
+                                        "memory": "512Mi"
+                                    },
+                                    "requests": {
+                                        "cpu": "100m",
+                                        "memory": "256Mi"
+                                    }
+                                },
+                                "volumeMounts": [
+                                    {
+                                        "name": "mongodb-data",
+                                        "mountPath": "/var/lib/mongodb/data"
+                                    }
+                                ],
+                                "livenessProbe": {
+                                    "tcpSocket": {
+                                        "port": 27017
+                                    },
+                                    "initialDelaySeconds": 30,
+                                    "timeoutSeconds": 1,
+                                    "periodSeconds": 10,
+                                    "successThreshold": 1,
+                                    "failureThreshold": 3
+                                },
+                                "readinessProbe": {
+                                    "exec": {
+                                        "command": [
+                                            "/bin/sh",
+                                            "-i",
+                                            "-c",
+                                            "mongo 127.0.0.1:27017/$MONGODB_DATABASE -u $MONGODB_USER -p $MONGODB_PASSWORD --eval=\"quit()\""
+                                        ]
+                                    },
+                                    "initialDelaySeconds": 3,
+                                    "timeoutSeconds": 1,
+                                    "periodSeconds": 10,
+                                    "successThreshold": 1,
+                                    "failureThreshold": 3
+                                },
+                                "terminationMessagePath": "/dev/termination-log",
+                                "imagePullPolicy": "IfNotPresent"
+                            }
+                        ],
+                        "restartPolicy": "Always",
+                        "terminationGracePeriodSeconds": 30,
+                        "dnsPolicy": "ClusterFirst"
+                    }
+                }
+            },
+            "status": {}
+        },
+        {
+            "kind": "DeploymentConfig",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "tauren",
+                "generation": 1,
+                "creationTimestamp": null,
+                "labels": {
+                    "app": "tauren",
+                    "template": "tauren"
+                },
+                "annotations": {
+                    "description": "Defines how to deploy the application server"
+                }
+            },
+            "spec": {
+                "strategy": {
+                    "type": "Rolling",
+                    "rollingParams": {
+                        "updatePeriodSeconds": 1,
+                        "intervalSeconds": 1,
+                        "timeoutSeconds": 600,
+                        "maxUnavailable": "25%",
+                        "maxSurge": "25%"
+                    },
+                    "resources": {}
+                },
+                "triggers": [
+                    {
+                        "type": "ImageChange",
+                        "imageChangeParams": {
+                            "automatic": true,
+                            "containerNames": [
+                                "tauren"
+                            ],
+                            "from": {
+                                "kind": "ImageStreamTag",
+                                "namespace": "tauren10",
+                                "name": "tauren:latest"
+                            }
+                        }
+                    },
+                    {
+                        "type": "ConfigChange"
+                    }
+                ],
+                "replicas": 1,
+                "test": false,
+                "selector": {
+                    "name": "tauren"
+                },
+                "template": {
+                    "metadata": {
+                        "name": "tauren",
+                        "creationTimestamp": null,
+                        "labels": {
+                            "name": "tauren"
+                        }
+                    },
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "tauren",
+                                "image": "172.30.47.227:5000/tauren10/tauren@sha256:ce6f11ed099c3a1c8e541cca533ea038bfbf4750458033f403c9cc5ea5dc521d",
+                                "ports": [
+                                    {
+                                        "containerPort": 8080,
+                                        "protocol": "TCP"
+                                    }
+                                ],
+                                "env": [
+                                    {
+                                        "name": "DATABASE_SERVICE_NAME",
+                                        "value": "mongodb"
+                                    },
+                                    {
+                                        "name": "MONGODB_USER",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "name": "tauren",
+                                                "key": "database-user"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "MONGODB_PASSWORD",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "name": "tauren",
+                                                "key": "database-password"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "MONGODB_DATABASE",
+                                        "value": "sampledb"
+                                    },
+                                    {
+                                        "name": "MONGODB_ADMIN_PASSWORD",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "name": "tauren",
+                                                "key": "database-admin-password"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "resources": {
+                                    "limits": {
+                                        "memory": "512Mi"
+                                    },
+                                    "requests": {
+                                        "cpu": "100m",
+                                        "memory": "256Mi"
+                                    }
+                                },
+                                "terminationMessagePath": "/dev/termination-log",
+                                "imagePullPolicy": "IfNotPresent"
+                            }
+                        ],
+                        "restartPolicy": "Always",
+                        "terminationGracePeriodSeconds": 30,
+                        "dnsPolicy": "ClusterFirst"
+                    }
+                }
+            },
+            "status": {}
+        },
+        {
+            "kind": "ReplicationController",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "mongodb-4",
+                "generation": 1,
+                "creationTimestamp": null,
+                "labels": {
+                    "app": "mongodb-persistent",
+                    "openshift.io/deployment-config.name": "mongodb",
+                    "template": "mongodb-persistent-template"
+                },
+                "annotations": {
+                    "kubectl.kubernetes.io/desired-replicas": "1",
+                    "openshift.io/deployer-pod.name": "mongodb-4-deploy",
+                    "openshift.io/deployment-config.latest-version": "4",
+                    "openshift.io/deployment-config.name": "mongodb",
+                    "openshift.io/deployment.phase": "Failed",
+                    "openshift.io/deployment.replicas": "0",
+                    "openshift.io/deployment.status-reason": "deployer pod no longer exists",
+                    "openshift.io/encoded-deployment-config": "{\"kind\":\"DeploymentConfig\",\"apiVersion\":\"v1\",\"metadata\":{\"name\":\"mongodb\",\"namespace\":\"tauren10\",\"selfLink\":\"/oapi/v1/namespaces/tauren10/deploymentconfigs/mongodb\",\"uid\":\"38fa1474-fbc2-11e6-a876-0ebeb1070c7f\",\"resourceVersion\":\"919853101\",\"generation\":7,\"creationTimestamp\":\"2017-02-26T01:23:47Z\",\"labels\":{\"app\":\"mongodb-persistent\",\"template\":\"mongodb-persistent-template\"}},\"spec\":{\"strategy\":{\"type\":\"Recreate\",\"recreateParams\":{\"timeoutSeconds\":600},\"resources\":{}},\"triggers\":[{\"type\":\"ImageChange\",\"imageChangeParams\":{\"automatic\":true,\"containerNames\":[\"mongodb\"],\"from\":{\"kind\":\"ImageStreamTag\",\"namespace\":\"openshift\",\"name\":\"mongodb:3.2\"},\"lastTriggeredImage\":\"registry.access.redhat.com/rhscl/mongodb-32-rhel7@sha256:a77e06e382563510abe2dbb6728bb37ad92046147860aa61e10b64549839e2c0\"}},{\"type\":\"ConfigChange\"}],\"replicas\":1,\"test\":false,\"selector\":{\"name\":\"mongodb\"},\"template\":{\"metadata\":{\"creationTimestamp\":null,\"labels\":{\"name\":\"mongodb\"}},\"spec\":{\"volumes\":[{\"name\":\"mongodb-data\",\"persistentVolumeClaim\":{\"claimName\":\"mongodb\"}}],\"containers\":[{\"name\":\"mongodb\",\"image\":\"registry.access.redhat.com/rhscl/mongodb-32-rhel7@sha256:a77e06e382563510abe2dbb6728bb37ad92046147860aa61e10b64549839e2c0\",\"ports\":[{\"containerPort\":27017,\"protocol\":\"TCP\"}],\"env\":[{\"name\":\"MONGODB_USER\",\"value\":\"userBK3\"},{\"name\":\"MONGODB_PASSWORD\",\"value\":\"avEK556iQfVjxrLD\"},{\"name\":\"MONGODB_DATABASE\",\"value\":\"sampledb\"},{\"name\":\"MONGODB_ADMIN_PASSWORD\",\"value\":\"b83jQLCkLuJT3sEo\"}],\"resources\":{\"limits\":{\"memory\":\"1G\"},\"requests\":{\"cpu\":\"100m\",\"memory\":\"256Mi\"}},\"volumeMounts\":[{\"name\":\"mongodb-data\",\"mountPath\":\"/var/lib/mongodb/data\"}],\"livenessProbe\":{\"tcpSocket\":{\"port\":27017},\"initialDelaySeconds\":30,\"timeoutSeconds\":1,\"periodSeconds\":10,\"successThreshold\":1,\"failureThreshold\":3},\"readinessProbe\":{\"exec\":{\"command\":[\"/bin/sh\",\"-i\",\"-c\",\"mongo 127.0.0.1:27017/$MONGODB_DATABASE -u $MONGODB_USER -p $MONGODB_PASSWORD --eval=\\\"quit()\\\"\"]},\"initialDelaySeconds\":3,\"timeoutSeconds\":1,\"periodSeconds\":10,\"successThreshold\":1,\"failureThreshold\":3},\"terminationMessagePath\":\"/dev/termination-log\",\"imagePullPolicy\":\"IfNotPresent\",\"securityContext\":{\"capabilities\":{},\"privileged\":false}}],\"restartPolicy\":\"Always\",\"terminationGracePeriodSeconds\":30,\"dnsPolicy\":\"ClusterFirst\",\"securityContext\":{}}}},\"status\":{\"latestVersion\":4,\"observedGeneration\":6,\"details\":{\"message\":\"config change\",\"causes\":[{\"type\":\"ConfigChange\"}]},\"conditions\":[{\"type\":\"Available\",\"status\":\"False\",\"lastTransitionTime\":\"2017-02-26T01:23:47Z\",\"message\":\"Deployment config does not have minimum availability.\"},{\"type\":\"Progressing\",\"status\":\"False\",\"lastTransitionTime\":\"2017-02-26T01:45:18Z\",\"reason\":\"ProgressDeadlineExceeded\",\"message\":\"Replication controller \\\"mongodb-3\\\" has failed progressing\"}]}}\n"
+                }
+            },
+            "spec": {
+                "replicas": 0,
+                "selector": {
+                    "deployment": "mongodb-4",
+                    "deploymentconfig": "mongodb",
+                    "name": "mongodb"
+                },
+                "template": {
+                    "metadata": {
+                        "creationTimestamp": null,
+                        "labels": {
+                            "deployment": "mongodb-4",
+                            "deploymentconfig": "mongodb",
+                            "name": "mongodb"
+                        },
+                        "annotations": {
+                            "openshift.io/deployment-config.latest-version": "4",
+                            "openshift.io/deployment-config.name": "mongodb",
+                            "openshift.io/deployment.name": "mongodb-4"
+                        }
+                    },
+                    "spec": {
+                        "volumes": [
+                            {
+                                "name": "mongodb-data",
+                                "persistentVolumeClaim": {
+                                    "claimName": "mongodb"
+                                }
+                            }
+                        ],
+                        "containers": [
+                            {
+                                "name": "mongodb",
+                                "image": "registry.access.redhat.com/rhscl/mongodb-32-rhel7@sha256:a77e06e382563510abe2dbb6728bb37ad92046147860aa61e10b64549839e2c0",
+                                "ports": [
+                                    {
+                                        "containerPort": 27017,
+                                        "protocol": "TCP"
+                                    }
+                                ],
+                                "env": [
+                                    {
+                                        "name": "MONGODB_USER",
+                                        "value": "userBK3"
+                                    },
+                                    {
+                                        "name": "MONGODB_PASSWORD",
+                                        "value": "avEK556iQfVjxrLD"
+                                    },
+                                    {
+                                        "name": "MONGODB_DATABASE",
+                                        "value": "sampledb"
+                                    },
+                                    {
+                                        "name": "MONGODB_ADMIN_PASSWORD",
+                                        "value": "b83jQLCkLuJT3sEo"
+                                    }
+                                ],
+                                "resources": {
+                                    "limits": {
+                                        "memory": "512Mi"
+                                    },
+                                    "requests": {
+                                        "cpu": "100m",
+                                        "memory": "256Mi"
+                                    }
+                                },
+                                "volumeMounts": [
+                                    {
+                                        "name": "mongodb-data",
+                                        "mountPath": "/var/lib/mongodb/data"
+                                    }
+                                ],
+                                "livenessProbe": {
+                                    "tcpSocket": {
+                                        "port": 27017
+                                    },
+                                    "initialDelaySeconds": 30,
+                                    "timeoutSeconds": 1,
+                                    "periodSeconds": 10,
+                                    "successThreshold": 1,
+                                    "failureThreshold": 3
+                                },
+                                "readinessProbe": {
+                                    "exec": {
+                                        "command": [
+                                            "/bin/sh",
+                                            "-i",
+                                            "-c",
+                                            "mongo 127.0.0.1:27017/$MONGODB_DATABASE -u $MONGODB_USER -p $MONGODB_PASSWORD --eval=\"quit()\""
+                                        ]
+                                    },
+                                    "initialDelaySeconds": 3,
+                                    "timeoutSeconds": 1,
+                                    "periodSeconds": 10,
+                                    "successThreshold": 1,
+                                    "failureThreshold": 3
+                                },
+                                "terminationMessagePath": "/dev/termination-log",
+                                "imagePullPolicy": "IfNotPresent"
+                            }
+                        ],
+                        "restartPolicy": "Always",
+                        "terminationGracePeriodSeconds": 30,
+                        "dnsPolicy": "ClusterFirst"
+                    }
+                }
+            },
+            "status": {
+                "replicas": 0
+            }
+        },
+        {
+            "kind": "ReplicationController",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "mongodb-5",
+                "generation": 1,
+                "creationTimestamp": null,
+                "labels": {
+                    "app": "mongodb-persistent",
+                    "openshift.io/deployment-config.name": "mongodb",
+                    "template": "mongodb-persistent-template"
+                },
+                "annotations": {
+                    "openshift.io/deployer-pod.name": "mongodb-5-deploy",
+                    "openshift.io/deployment-config.latest-version": "5",
+                    "openshift.io/deployment-config.name": "mongodb",
+                    "openshift.io/deployment.phase": "Complete",
+                    "openshift.io/deployment.replicas": "1",
+                    "openshift.io/deployment.status-reason": "config change",
+                    "openshift.io/encoded-deployment-config": "{\"kind\":\"DeploymentConfig\",\"apiVersion\":\"v1\",\"metadata\":{\"name\":\"mongodb\",\"namespace\":\"tauren10\",\"selfLink\":\"/oapi/v1/namespaces/tauren10/deploymentconfigs/mongodb\",\"uid\":\"38fa1474-fbc2-11e6-a876-0ebeb1070c7f\",\"resourceVersion\":\"919895366\",\"generation\":9,\"creationTimestamp\":\"2017-02-26T01:23:47Z\",\"labels\":{\"app\":\"mongodb-persistent\",\"template\":\"mongodb-persistent-template\"}},\"spec\":{\"strategy\":{\"type\":\"Recreate\",\"recreateParams\":{\"timeoutSeconds\":600},\"resources\":{}},\"triggers\":[{\"type\":\"ImageChange\",\"imageChangeParams\":{\"automatic\":true,\"containerNames\":[\"mongodb\"],\"from\":{\"kind\":\"ImageStreamTag\",\"namespace\":\"openshift\",\"name\":\"mongodb:latest\"},\"lastTriggeredImage\":\"registry.access.redhat.com/rhscl/mongodb-32-rhel7@sha256:a77e06e382563510abe2dbb6728bb37ad92046147860aa61e10b64549839e2c0\"}},{\"type\":\"ConfigChange\"}],\"replicas\":1,\"test\":false,\"selector\":{\"name\":\"mongodb\"},\"template\":{\"metadata\":{\"creationTimestamp\":null,\"labels\":{\"name\":\"mongodb\"}},\"spec\":{\"volumes\":[{\"name\":\"mongodb-data\",\"persistentVolumeClaim\":{\"claimName\":\"mongodb\"}}],\"containers\":[{\"name\":\"mongodb\",\"image\":\"registry.access.redhat.com/rhscl/mongodb-32-rhel7@sha256:a77e06e382563510abe2dbb6728bb37ad92046147860aa61e10b64549839e2c0\",\"ports\":[{\"containerPort\":27017,\"protocol\":\"TCP\"}],\"env\":[{\"name\":\"MONGODB_USER\",\"value\":\"userBK3\"},{\"name\":\"MONGODB_PASSWORD\",\"value\":\"avEK556iQfVjxrLD\"},{\"name\":\"MONGODB_DATABASE\",\"value\":\"sampledb\"},{\"name\":\"MONGODB_ADMIN_PASSWORD\",\"value\":\"b83jQLCkLuJT3sEo\"}],\"resources\":{\"limits\":{\"memory\":\"1G\"},\"requests\":{\"cpu\":\"100m\",\"memory\":\"256Mi\"}},\"volumeMounts\":[{\"name\":\"mongodb-data\",\"mountPath\":\"/var/lib/mongodb/data\"}],\"livenessProbe\":{\"tcpSocket\":{\"port\":27017},\"initialDelaySeconds\":30,\"timeoutSeconds\":1,\"periodSeconds\":10,\"successThreshold\":1,\"failureThreshold\":3},\"readinessProbe\":{\"exec\":{\"command\":[\"/bin/sh\",\"-i\",\"-c\",\"mongo 127.0.0.1:27017/$MONGODB_DATABASE -u $MONGODB_USER -p $MONGODB_PASSWORD --eval=\\\"quit()\\\"\"]},\"initialDelaySeconds\":3,\"timeoutSeconds\":1,\"periodSeconds\":10,\"successThreshold\":1,\"failureThreshold\":3},\"terminationMessagePath\":\"/dev/termination-log\",\"imagePullPolicy\":\"IfNotPresent\",\"securityContext\":{\"capabilities\":{},\"privileged\":false}}],\"restartPolicy\":\"Always\",\"terminationGracePeriodSeconds\":30,\"dnsPolicy\":\"ClusterFirst\",\"securityContext\":{}}}},\"status\":{\"latestVersion\":5,\"observedGeneration\":8,\"details\":{\"message\":\"config change\",\"causes\":[{\"type\":\"ConfigChange\"}]},\"conditions\":[{\"type\":\"Available\",\"status\":\"False\",\"lastTransitionTime\":\"2017-02-26T01:23:47Z\",\"message\":\"Deployment config does not have minimum availability.\"},{\"type\":\"Progressing\",\"status\":\"False\",\"lastTransitionTime\":\"2017-02-26T01:53:26Z\",\"reason\":\"ProgressDeadlineExceeded\",\"message\":\"Replication controller \\\"mongodb-4\\\" has failed progressing\"}]}}\n"
+                }
+            },
+            "spec": {
+                "replicas": 1,
+                "selector": {
+                    "deployment": "mongodb-5",
+                    "deploymentconfig": "mongodb",
+                    "name": "mongodb"
+                },
+                "template": {
+                    "metadata": {
+                        "creationTimestamp": null,
+                        "labels": {
+                            "deployment": "mongodb-5",
+                            "deploymentconfig": "mongodb",
+                            "name": "mongodb"
+                        },
+                        "annotations": {
+                            "openshift.io/deployment-config.latest-version": "5",
+                            "openshift.io/deployment-config.name": "mongodb",
+                            "openshift.io/deployment.name": "mongodb-5"
+                        }
+                    },
+                    "spec": {
+                        "volumes": [
+                            {
+                                "name": "mongodb-data",
+                                "persistentVolumeClaim": {
+                                    "claimName": "mongodb"
+                                }
+                            }
+                        ],
+                        "containers": [
+                            {
+                                "name": "mongodb",
+                                "image": "registry.access.redhat.com/rhscl/mongodb-32-rhel7@sha256:a77e06e382563510abe2dbb6728bb37ad92046147860aa61e10b64549839e2c0",
+                                "ports": [
+                                    {
+                                        "containerPort": 27017,
+                                        "protocol": "TCP"
+                                    }
+                                ],
+                                "env": [
+                                    {
+                                        "name": "MONGODB_USER",
+                                        "value": "userBK3"
+                                    },
+                                    {
+                                        "name": "MONGODB_PASSWORD",
+                                        "value": "avEK556iQfVjxrLD"
+                                    },
+                                    {
+                                        "name": "MONGODB_DATABASE",
+                                        "value": "sampledb"
+                                    },
+                                    {
+                                        "name": "MONGODB_ADMIN_PASSWORD",
+                                        "value": "b83jQLCkLuJT3sEo"
+                                    }
+                                ],
+                                "resources": {
+                                    "limits": {
+                                        "memory": "512Mi"
+                                    },
+                                    "requests": {
+                                        "cpu": "100m",
+                                        "memory": "256Mi"
+                                    }
+                                },
+                                "volumeMounts": [
+                                    {
+                                        "name": "mongodb-data",
+                                        "mountPath": "/var/lib/mongodb/data"
+                                    }
+                                ],
+                                "livenessProbe": {
+                                    "tcpSocket": {
+                                        "port": 27017
+                                    },
+                                    "initialDelaySeconds": 30,
+                                    "timeoutSeconds": 1,
+                                    "periodSeconds": 10,
+                                    "successThreshold": 1,
+                                    "failureThreshold": 3
+                                },
+                                "readinessProbe": {
+                                    "exec": {
+                                        "command": [
+                                            "/bin/sh",
+                                            "-i",
+                                            "-c",
+                                            "mongo 127.0.0.1:27017/$MONGODB_DATABASE -u $MONGODB_USER -p $MONGODB_PASSWORD --eval=\"quit()\""
+                                        ]
+                                    },
+                                    "initialDelaySeconds": 3,
+                                    "timeoutSeconds": 1,
+                                    "periodSeconds": 10,
+                                    "successThreshold": 1,
+                                    "failureThreshold": 3
+                                },
+                                "terminationMessagePath": "/dev/termination-log",
+                                "imagePullPolicy": "IfNotPresent"
+                            }
+                        ],
+                        "restartPolicy": "Always",
+                        "terminationGracePeriodSeconds": 30,
+                        "dnsPolicy": "ClusterFirst",
+                        "securityContext": {}
+                    }
+                }
+            },
+            "status": {
+                "replicas": 0
+            }
+        },
+        {
+            "kind": "ReplicationController",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "tauren-1",
+                "generation": 1,
+                "creationTimestamp": null,
+                "labels": {
+                    "app": "tauren",
+                    "openshift.io/deployment-config.name": "tauren",
+                    "template": "tauren"
+                },
+                "annotations": {
+                    "openshift.io/deployer-pod.name": "tauren-1-deploy",
+                    "openshift.io/deployment-config.latest-version": "1",
+                    "openshift.io/deployment-config.name": "tauren",
+                    "openshift.io/deployment.phase": "Complete",
+                    "openshift.io/deployment.replicas": "1",
+                    "openshift.io/deployment.status-reason": "image change",
+                    "openshift.io/encoded-deployment-config": "{\"kind\":\"DeploymentConfig\",\"apiVersion\":\"v1\",\"metadata\":{\"name\":\"tauren\",\"namespace\":\"tauren10\",\"selfLink\":\"/oapi/v1/namespaces/tauren10/deploymentconfigs/tauren\",\"uid\":\"33aebb03-fbbb-11e6-b7b8-0e3d364e19a5\",\"resourceVersion\":\"919658471\",\"generation\":2,\"creationTimestamp\":\"2017-02-26T00:33:32Z\",\"labels\":{\"app\":\"tauren\",\"template\":\"tauren\"},\"annotations\":{\"description\":\"Defines how to deploy the application server\"}},\"spec\":{\"strategy\":{\"type\":\"Rolling\",\"rollingParams\":{\"updatePeriodSeconds\":1,\"intervalSeconds\":1,\"timeoutSeconds\":600,\"maxUnavailable\":\"25%\",\"maxSurge\":\"25%\"},\"resources\":{}},\"triggers\":[{\"type\":\"ImageChange\",\"imageChangeParams\":{\"automatic\":true,\"containerNames\":[\"tauren\"],\"from\":{\"kind\":\"ImageStreamTag\",\"namespace\":\"tauren10\",\"name\":\"tauren:latest\"},\"lastTriggeredImage\":\"172.30.47.227:5000/tauren10/tauren@sha256:ce6f11ed099c3a1c8e541cca533ea038bfbf4750458033f403c9cc5ea5dc521d\"}},{\"type\":\"ConfigChange\"}],\"replicas\":1,\"test\":false,\"selector\":{\"name\":\"tauren\"},\"template\":{\"metadata\":{\"name\":\"tauren\",\"creationTimestamp\":null,\"labels\":{\"name\":\"tauren\"}},\"spec\":{\"containers\":[{\"name\":\"tauren\",\"image\":\"172.30.47.227:5000/tauren10/tauren@sha256:ce6f11ed099c3a1c8e541cca533ea038bfbf4750458033f403c9cc5ea5dc521d\",\"ports\":[{\"containerPort\":8080,\"protocol\":\"TCP\"}],\"env\":[{\"name\":\"DATABASE_SERVICE_NAME\",\"value\":\"mongodb\"},{\"name\":\"MONGODB_USER\",\"valueFrom\":{\"secretKeyRef\":{\"name\":\"tauren\",\"key\":\"database-user\"}}},{\"name\":\"MONGODB_PASSWORD\",\"valueFrom\":{\"secretKeyRef\":{\"name\":\"tauren\",\"key\":\"database-password\"}}},{\"name\":\"MONGODB_DATABASE\",\"value\":\"sampledb\"},{\"name\":\"MONGODB_ADMIN_PASSWORD\",\"valueFrom\":{\"secretKeyRef\":{\"name\":\"tauren\",\"key\":\"database-admin-password\"}}}],\"resources\":{\"limits\":{\"memory\":\"512Mi\"},\"requests\":{\"cpu\":\"100m\",\"memory\":\"256Mi\"}},\"terminationMessagePath\":\"/dev/termination-log\",\"imagePullPolicy\":\"IfNotPresent\"}],\"restartPolicy\":\"Always\",\"terminationGracePeriodSeconds\":30,\"dnsPolicy\":\"ClusterFirst\",\"securityContext\":{}}}},\"status\":{\"latestVersion\":1,\"observedGeneration\":1,\"details\":{\"message\":\"image change\",\"causes\":[{\"type\":\"ImageChange\",\"imageTrigger\":{\"from\":{\"kind\":\"ImageStreamTag\",\"namespace\":\"tauren10\",\"name\":\"tauren:latest\"}}}]},\"conditions\":[{\"type\":\"Available\",\"status\":\"False\",\"lastTransitionTime\":\"2017-02-26T00:33:32Z\",\"message\":\"Deployment config does not have minimum availability.\"}]}}\n"
+                }
+            },
+            "spec": {
+                "replicas": 1,
+                "selector": {
+                    "deployment": "tauren-1",
+                    "deploymentconfig": "tauren",
+                    "name": "tauren"
+                },
+                "template": {
+                    "metadata": {
+                        "creationTimestamp": null,
+                        "labels": {
+                            "deployment": "tauren-1",
+                            "deploymentconfig": "tauren",
+                            "name": "tauren"
+                        },
+                        "annotations": {
+                            "openshift.io/deployment-config.latest-version": "1",
+                            "openshift.io/deployment-config.name": "tauren",
+                            "openshift.io/deployment.name": "tauren-1"
+                        }
+                    },
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "tauren",
+                                "image": "172.30.47.227:5000/tauren10/tauren@sha256:ce6f11ed099c3a1c8e541cca533ea038bfbf4750458033f403c9cc5ea5dc521d",
+                                "ports": [
+                                    {
+                                        "containerPort": 8080,
+                                        "protocol": "TCP"
+                                    }
+                                ],
+                                "env": [
+                                    {
+                                        "name": "DATABASE_SERVICE_NAME",
+                                        "value": "mongodb"
+                                    },
+                                    {
+                                        "name": "MONGODB_USER",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "name": "tauren",
+                                                "key": "database-user"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "MONGODB_PASSWORD",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "name": "tauren",
+                                                "key": "database-password"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "MONGODB_DATABASE",
+                                        "value": "sampledb"
+                                    },
+                                    {
+                                        "name": "MONGODB_ADMIN_PASSWORD",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "name": "tauren",
+                                                "key": "database-admin-password"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "resources": {
+                                    "limits": {
+                                        "memory": "512Mi"
+                                    },
+                                    "requests": {
+                                        "cpu": "100m",
+                                        "memory": "256Mi"
+                                    }
+                                },
+                                "terminationMessagePath": "/dev/termination-log",
+                                "imagePullPolicy": "IfNotPresent"
+                            }
+                        ],
+                        "restartPolicy": "Always",
+                        "terminationGracePeriodSeconds": 30,
+                        "dnsPolicy": "ClusterFirst",
+                        "securityContext": {}
+                    }
+                }
+            },
+            "status": {
+                "replicas": 0
+            }
+        },
+        {
+            "kind": "Route",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "tauren",
+                "creationTimestamp": null,
+                "labels": {
+                    "app": "tauren",
+                    "template": "tauren"
+                },
+                "annotations": {
+                    "openshift.io/host.generated": "true"
+                }
+            },
+            "spec": {
+                "host": "tauren-tauren10.44fs.preview.openshiftapps.com",
+                "to": {
+                    "kind": "Service",
+                    "name": "tauren",
+                    "weight": 100
+                },
+                "port": {
+                    "targetPort": "web"
+                },
+                "wildcardPolicy": "None"
+            },
+            "status": {
+                "ingress": [
+                    {
+                        "host": "tauren-tauren10.44fs.preview.openshiftapps.com",
+                        "routerName": "router",
+                        "conditions": [
+                            {
+                                "type": "Admitted",
+                                "status": "True",
+                                "lastTransitionTime": "2017-02-26T00:33:32Z"
+                            }
+                        ],
+                        "wildcardPolicy": "None"
+                    }
+                ]
+            }
+        },
+        {
+            "kind": "Service",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "mongodb",
+                "creationTimestamp": null,
+                "labels": {
+                    "app": "mongodb-persistent",
+                    "template": "mongodb-persistent-template"
+                }
+            },
+            "spec": {
+                "ports": [
+                    {
+                        "name": "mongo",
+                        "protocol": "TCP",
+                        "port": 27017,
+                        "targetPort": 27017
+                    }
+                ],
+                "selector": {
+                    "name": "mongodb"
+                },
+                "type": "ClusterIP",
+                "sessionAffinity": "None"
+            },
+            "status": {
+                "loadBalancer": {}
+            }
+        },
+        {
+            "kind": "Service",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "tauren",
+                "creationTimestamp": null,
+                "labels": {
+                    "app": "tauren",
+                    "template": "tauren"
+                },
+                "annotations": {
+                    "description": "Exposes and load balances the application pods",
+                    "service.alpha.openshift.io/dependencies": "[{\"name\": \"mongodb\", \"kind\": \"Service\"}]"
+                }
+            },
+            "spec": {
+                "ports": [
+                    {
+                        "name": "web",
+                        "protocol": "TCP",
+                        "port": 8080,
+                        "targetPort": 8080
+                    },
+                    {
+                        "name": "debug",
+                        "protocol": "TCP",
+                        "port": 9229,
+                        "targetPort": 9229
+                    }
+                ],
+                "selector": {
+                    "name": "tauren"
+                },
+                "type": "ClusterIP",
+                "sessionAffinity": "None"
+            },
+            "status": {
+                "loadBalancer": {}
+            }
+        },
+        {
+            "kind": "Pod",
+            "apiVersion": "v1",
+            "metadata": {
+                "generateName": "mongodb-5-",
+                "creationTimestamp": null,
+                "labels": {
+                    "deployment": "mongodb-5",
+                    "deploymentconfig": "mongodb",
+                    "name": "mongodb"
+                },
+                "annotations": {
+                    "kubernetes.io/created-by": "{\"kind\":\"SerializedReference\",\"apiVersion\":\"v1\",\"reference\":{\"kind\":\"ReplicationController\",\"namespace\":\"tauren10\",\"name\":\"mongodb-5\",\"uid\":\"494c4045-fbc7-11e6-b7b8-0e3d364e19a5\",\"apiVersion\":\"v1\",\"resourceVersion\":\"920259034\"}}\n",
+                    "kubernetes.io/limit-ranger": "LimitRanger plugin set: cpu limit for container mongodb",
+                    "openshift.io/deployment-config.latest-version": "5",
+                    "openshift.io/deployment-config.name": "mongodb",
+                    "openshift.io/deployment.name": "mongodb-5",
+                    "openshift.io/scc": "restricted"
+                }
+            },
+            "spec": {
+                "volumes": [
+                    {
+                        "name": "mongodb-data",
+                        "persistentVolumeClaim": {
+                            "claimName": "mongodb"
+                        }
+                    },
+                    {
+                        "name": "default-token-pl8oh",
+                        "secret": {
+                            "secretName": "default-token-pl8oh",
+                            "defaultMode": 420
+                        }
+                    }
+                ],
+                "containers": [
+                    {
+                        "name": "mongodb",
+                        "image": "registry.access.redhat.com/rhscl/mongodb-32-rhel7@sha256:a77e06e382563510abe2dbb6728bb37ad92046147860aa61e10b64549839e2c0",
+                        "ports": [
+                            {
+                                "containerPort": 27017,
+                                "protocol": "TCP"
+                            }
+                        ],
+                        "env": [
+                            {
+                                "name": "MONGODB_USER",
+                                "value": "userBK3"
+                            },
+                            {
+                                "name": "MONGODB_PASSWORD",
+                                "value": "avEK556iQfVjxrLD"
+                            },
+                            {
+                                "name": "MONGODB_DATABASE",
+                                "value": "sampledb"
+                            },
+                            {
+                                "name": "MONGODB_ADMIN_PASSWORD",
+                                "value": "b83jQLCkLuJT3sEo"
+                            }
+                        ],
+                        "resources": {
+                            "requests": {
+                                "cpu": "111m",
+                                "memory": "512Mi"
+                            }
+                        },
+                        "volumeMounts": [
+                            {
+                                "name": "mongodb-data",
+                                "mountPath": "/var/lib/mongodb/data"
+                            },
+                            {
+                                "name": "default-token-pl8oh",
+                                "readOnly": true,
+                                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount"
+                            }
+                        ],
+                        "livenessProbe": {
+                            "tcpSocket": {
+                                "port": 27017
+                            },
+                            "initialDelaySeconds": 30,
+                            "timeoutSeconds": 1,
+                            "periodSeconds": 10,
+                            "successThreshold": 1,
+                            "failureThreshold": 3
+                        },
+                        "readinessProbe": {
+                            "exec": {
+                                "command": [
+                                    "/bin/sh",
+                                    "-i",
+                                    "-c",
+                                    "mongo 127.0.0.1:27017/$MONGODB_DATABASE -u $MONGODB_USER -p $MONGODB_PASSWORD --eval=\"quit()\""
+                                ]
+                            },
+                            "initialDelaySeconds": 3,
+                            "timeoutSeconds": 1,
+                            "periodSeconds": 10,
+                            "successThreshold": 1,
+                            "failureThreshold": 3
+                        },
+                        "terminationMessagePath": "/dev/termination-log",
+                        "imagePullPolicy": "Always",
+                        "securityContext": {
+                            "capabilities": {
+                                "drop": [
+                                    "KILL",
+                                    "MKNOD",
+                                    "NET_RAW",
+                                    "SETGID",
+                                    "SETUID",
+                                    "SYS_CHROOT"
+                                ]
+                            },
+                            "privileged": false
+                        }
+                    }
+                ],
+                "restartPolicy": "Always",
+                "terminationGracePeriodSeconds": 30,
+                "dnsPolicy": "ClusterFirst",
+                "serviceAccountName": "default",
+                "serviceAccount": "default",
+                "imagePullSecrets": [
+                    {
+                        "name": "default-dockercfg-cpveo"
+                    }
+                ]
+            },
+            "status": {
+                "phase": "Pending"
+            }
+        },
+        {
+            "kind": "Pod",
+            "apiVersion": "v1",
+            "metadata": {
+                "generateName": "tauren-1-",
+                "creationTimestamp": null,
+                "labels": {
+                    "deployment": "tauren-1",
+                    "deploymentconfig": "tauren",
+                    "name": "tauren"
+                },
+                "annotations": {
+                    "kubernetes.io/created-by": "{\"kind\":\"SerializedReference\",\"apiVersion\":\"v1\",\"reference\":{\"kind\":\"ReplicationController\",\"namespace\":\"tauren10\",\"name\":\"tauren-1\",\"uid\":\"b962804a-fbbc-11e6-b7b8-0e3d364e19a5\",\"apiVersion\":\"v1\",\"resourceVersion\":\"920245351\"}}\n",
+                    "kubernetes.io/limit-ranger": "LimitRanger plugin set: cpu limit for container tauren",
+                    "openshift.io/deployment-config.latest-version": "1",
+                    "openshift.io/deployment-config.name": "tauren",
+                    "openshift.io/deployment.name": "tauren-1",
+                    "openshift.io/scc": "restricted"
+                }
+            },
+            "spec": {
+                "volumes": [
+                    {
+                        "name": "default-token-pl8oh",
+                        "secret": {
+                            "secretName": "default-token-pl8oh",
+                            "defaultMode": 420
+                        }
+                    }
+                ],
+                "containers": [
+                    {
+                        "name": "tauren",
+                        "image": "172.30.47.227:5000/tauren10/tauren@sha256:ce6f11ed099c3a1c8e541cca533ea038bfbf4750458033f403c9cc5ea5dc521d",
+                        "ports": [
+                            {
+                                "containerPort": 8080,
+                                "protocol": "TCP"
+                            }
+                        ],
+                        "env": [
+                            {
+                                "name": "DATABASE_SERVICE_NAME",
+                                "value": "mongodb"
+                            },
+                            {
+                                "name": "MONGODB_USER",
+                                "valueFrom": {
+                                    "secretKeyRef": {
+                                        "name": "tauren",
+                                        "key": "database-user"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "MONGODB_PASSWORD",
+                                "valueFrom": {
+                                    "secretKeyRef": {
+                                        "name": "tauren",
+                                        "key": "database-password"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "MONGODB_DATABASE",
+                                "value": "sampledb"
+                            },
+                            {
+                                "name": "MONGODB_ADMIN_PASSWORD",
+                                "valueFrom": {
+                                    "secretKeyRef": {
+                                        "name": "tauren",
+                                        "key": "database-admin-password"
+                                    }
+                                }
+                            }
+                        ],
+                        "resources": {
+                            "limits": {
+                                "cpu": "1",
+                                "memory": "512Mi"
+                            },
+                            "requests": {
+                                "cpu": "60m",
+                                "memory": "307Mi"
+                            }
+                        },
+                        "volumeMounts": [
+                            {
+                                "name": "default-token-pl8oh",
+                                "readOnly": true,
+                                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount"
+                            }
+                        ],
+                        "terminationMessagePath": "/dev/termination-log",
+                        "imagePullPolicy": "Always"
+                    }
+                ],
+                "restartPolicy": "Always",
+                "terminationGracePeriodSeconds": 30,
+                "dnsPolicy": "ClusterFirst",
+                "serviceAccountName": "default",
+                "serviceAccount": "default",
+                "imagePullSecrets": [
+                    {
+                        "name": "default-dockercfg-cpveo"
+                    }
+                ]
+            },
+            "status": {
+                "phase": "Pending"
+            }
+        }
+    ]
+}
