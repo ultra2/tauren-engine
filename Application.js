@@ -63,10 +63,13 @@ class Application {
     }
     uploadFileOrFolder(path, data) {
         return __awaiter(this, void 0, void 0, function* () {
-            var client = new model.Client(yield this.engine.db.collection(this.name).findOne({ _id: "client" }));
-            var s = client.findOrCreateFileStub(path);
+            if (path == "controller.js") {
+                var F = Function('app', data);
+            }
+            var fs = new model.FileSystem(yield this.engine.db.collection(this.name).findOne({ _id: "fs" }));
+            var s = fs.findOrCreateFileStub(path);
             if (s.stubNew) {
-                yield this.engine.db.collection(this.name).updateOne({ _id: "client" }, client, { w: 1, checkKeys: false });
+                yield this.engine.db.collection(this.name).updateOne({ _id: "fs" }, fs, { w: 1, checkKeys: false });
             }
             if (s.stubType == "folder")
                 return s;
@@ -90,8 +93,8 @@ class Application {
     }
     loadFile(path) {
         return __awaiter(this, void 0, void 0, function* () {
-            var client = new model.Client(yield this.engine.db.collection(this.name).findOne({ _id: "client" }));
-            var data = client.findOrCreateFileStub(path);
+            var fs = new model.FileSystem(yield this.engine.db.collection(this.name).findOne({ _id: "fs" }));
+            var data = fs.findOrCreateFileStub(path);
             if (data == null) {
                 throw Error("not found");
             }
@@ -123,8 +126,8 @@ class Application {
     }
     garbageFiles() {
         return __awaiter(this, void 0, void 0, function* () {
-            var client = new model.Client(yield this.engine.db.collection(this.name).findOne({ _id: "client" }));
-            var a = JSON.stringify(client._attachments);
+            var fs = new model.FileSystem(yield this.engine.db.collection(this.name).findOne({ _id: "fs" }));
+            var a = JSON.stringify(fs._attachments);
             var b = a.split("_fileId\":\"");
             var c = b.map(function (value) {
                 return value.substr(0, 36);

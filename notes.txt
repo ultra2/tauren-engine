@@ -40,3 +40,8 @@ after change .gitignore run this!!!! (NOTE : First commit your current changes, 
 git rm -r --cached .
 git add .
 git commit -m "fixed untracked files"
+
+Docker image build
+-------------------
+cd to root of project source where Dockerfile resides 
+docker build -t tauren .

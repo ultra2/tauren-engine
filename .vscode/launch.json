@@ -12,7 +12,7 @@
             "cwd": "${workspaceRoot}",
             "outFiles": [],
             "env": {
-                "WORKING_DB_URL": "mongodb://admin:Leonardo19770206Z@ds117189.mlab.com:17189/ide"
+                 "WORKING_DB_URL": "mongodb://admin:Leonardo19770206Z@ds056549.mlab.com:56549/tauren"
             }
         },
         {

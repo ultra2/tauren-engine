@@ -14,8 +14,8 @@ export class Model {
     }
 }
 
-export class Client extends Model {
-    _id: "client"
+export class FileSystem extends Model {
+    _id: "fs"
     _attachments: {
         packages: {}
     }

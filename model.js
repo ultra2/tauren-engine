@@ -10,7 +10,7 @@ class Model {
     }
 }
 exports.Model = Model;
-class Client extends Model {
+class FileSystem extends Model {
     findOrCreateFileStub(path) {
         var result = new stubInfo();
         path = path.replace(/\./g, '*');
@@ -48,7 +48,7 @@ class Client extends Model {
         return result;
     }
 }
-exports.Client = Client;
+exports.FileSystem = FileSystem;
 class stubInfo {
 }
 exports.stubInfo = stubInfo;

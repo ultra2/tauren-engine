@@ -12,12 +12,15 @@ const bodyParser = require("body-parser");
 const request = require("request");
 const uuid = require("node-uuid");
 const mongodb = require("mongodb");
+const model = require('./model');
 const Application_1 = require('./Application');
+const gridfs = require("gridfs-stream");
+const utils_1 = require('./utils');
 class Engine {
     constructor() {
         this.info = {};
         this.applications = {};
-        this.templateUrl = "mongodb://admin:Leonardo19770206Z@ds117189.mlab.com:17189/ide";
+        this.templateUrl = "mongodb://guest:guest@ds056549.mlab.com:56549/tauren";
     }
     run() {
         return __awaiter(this, void 0, void 0, function* () {
@@ -64,44 +67,37 @@ class Engine {
                     this.info["workingDBConnected"] = false;
                 }
             }
-            if (this.dbTpl == null) {
-                var templateUrl = "mongodb://admin:Leonardo19770206Z@ds117189.mlab.com:17189/ide";
-                try {
-                    this.dbTpl = yield mongodb.MongoClient.connect(templateUrl);
-                    console.log("TEMPLATE Mongo initialized!");
-                    this.info["templateDBConnected"] = true;
-                }
-                catch (err) {
-                    console.log('TEMPLATE Mongo error: ', err.message);
-                    this.info["templateDBConnected"] = false;
-                }
-            }
         });
     }
     updateStudio() {
         return __awaiter(this, void 0, void 0, function* () {
             this.info["studioUpdated"] = false;
-            if (process.env.WORKING_DB_URL == this.templateUrl)
-                return;
             if (this.db == null)
                 return;
-            if (this.dbTpl == null)
+            var workingHost = process.env.WORKING_DB_URL.substring(process.env.WORKING_DB_URL.indexOf('@') + 1);
+            var templateHost = this.templateUrl.substring(this.templateUrl.indexOf('@') + 1);
+            if (workingHost == templateHost)
                 return;
-            yield this.db.collection("studio").drop();
-            yield this.db.collection("studio.files").drop();
-            yield this.db.collection("studio.chunks").drop();
-            var fs = yield this.dbTpl.collection("studio").find().toArray();
-            yield this.db.collection("studio").insertMany(fs);
-            var files = yield this.dbTpl.collection("studio.files").find().toArray();
-            yield this.db.collection("studio.files").insertMany(files);
-            var chunks = yield this.dbTpl.collection("studio.chunks").find().toArray();
-            yield this.db.collection("studio.chunks").insertMany(chunks);
+            yield this.copyApplicationFromDatabase(this.templateUrl, "studio", "studio");
             this.info["studioUpdated"] = true;
         });
     }
     initRouter() {
         return __awaiter(this, void 0, void 0, function* () {
             this.router = express.Router();
+            this.router.get("/", function (req, res, next) {
+                return __awaiter(this, void 0, void 0, function* () {
+                    try {
+                        yield this.initMongo();
+                        yield this.loadApplications();
+                        yield this.updateStudio();
+                        res.redirect('/studio/Static/getFile/index.html');
+                    }
+                    catch (err) {
+                        throw Error(err.message);
+                    }
+                });
+            }.bind(this));
             this.router.get("/env", function (req, res, next) {
                 return __awaiter(this, void 0, void 0, function* () {
                     try {
@@ -113,35 +109,9 @@ class Engine {
                     }
                 });
             }.bind(this));
-            this.router.get("/start", function (req, res, next) {
+            this.router.get("/info", function (req, res, next) {
                 return __awaiter(this, void 0, void 0, function* () {
                     try {
-                        yield this.initMongo();
-                        yield this.updateStudio();
-                        yield this.loadApplications();
-                        res.send(this.info);
-                        res.end();
-                    }
-                    catch (err) {
-                        throw Error(err.message);
-                    }
-                });
-            }.bind(this));
-            this.router.get("/", function (req, res, next) {
-                return __awaiter(this, void 0, void 0, function* () {
-                    try {
-                        res.send(this.info);
-                        res.end();
-                    }
-                    catch (err) {
-                        throw Error(err.message);
-                    }
-                });
-            }.bind(this));
-            this.router.get("/updateStudio", function (req, res, next) {
-                return __awaiter(this, void 0, void 0, function* () {
-                    try {
-                        yield this.updateStudio();
                         res.send(this.info);
                         res.end();
                     }
@@ -155,7 +125,6 @@ class Engine {
                     try {
                         var debugRouteHost = process.env.ENGINE_SERVICE_NAME + "-debug-" + process.env.OPENSHIFT_BUILD_NAMESPACE + ".44fs.preview.openshiftapps.com";
                         var url = JSON.parse(body)[0].devtoolsFrontendUrl;
-                        url = url.replace("https://chrome-devtools-frontend.appspot.com", "chrome-devtools://devtools/remote");
                         url = url.replace("localhost:9229", debugRouteHost);
                         res.send(url);
                         res.end();
@@ -234,6 +203,15 @@ class Engine {
             }.bind(this));
         });
     }
+    loadApplication(name) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (this.applications[name])
+                return;
+            var app = new Application_1.default(name, this);
+            this.applications[name] = app;
+            yield app.load();
+        });
+    }
     loadApplications() {
         return __awaiter(this, void 0, void 0, function* () {
             if (!this.db)
@@ -245,11 +223,7 @@ class Engine {
                     var name = element.name.split('.')[0];
                     if (name == "system")
                         return;
-                    if (this.applications[name])
-                        return;
-                    var app = new Application_1.default(name, this);
-                    this.applications[name] = app;
-                    yield app.load();
+                    yield this.loadApplication(name);
                 });
             }.bind(this));
         });
@@ -259,7 +233,7 @@ class Engine {
             var app = new Application_1.default(name, this);
             var fileId = uuid.v1();
             yield this.db.collection(name).insertOne({
-                _id: "client",
+                _id: "fs",
                 _attachments: {}
             }, { w: 1, checkKeys: false });
             yield app.createFile(fileId, "index.html", "hello");
@@ -268,9 +242,57 @@ class Engine {
     }
     deleteApplication(name) {
         return __awaiter(this, void 0, void 0, function* () {
+            if (!this.applications[name])
+                return;
+            delete this.applications[name];
             yield this.db.collection(name).drop();
             yield this.db.collection(name + ".files").drop();
             yield this.db.collection(name + ".chunks").drop();
+        });
+    }
+    listApplicationsOfDatabase(dburl) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var result = [];
+            var sourcedb = yield mongodb.MongoClient.connect(dburl);
+            var collections = yield sourcedb.listCollections({}).toArray();
+            for (var i = 0; i < collections.length; i++) {
+                var application = collections[i].name;
+                if (application.indexOf('.') != -1)
+                    continue;
+                if (application == "objectlabs-system")
+                    continue;
+                var readme = "";
+                var fs = new model.FileSystem(yield sourcedb.collection(application).findOne({ _id: "fs" }));
+                var data = fs.findOrCreateFileStub("README.html");
+                if (!data.stubNew) {
+                    var filedoc = yield sourcedb.collection(application + ".files").findOne({ '_id': data.fileId });
+                    var gfs = gridfs(sourcedb, mongodb);
+                    var readstream = gfs.createReadStream({
+                        _id: filedoc._id,
+                        root: application
+                    });
+                    try {
+                        readme = yield utils_1.default.fromStream(readstream);
+                    }
+                    catch (err) {
+                    }
+                }
+                result.push({ name: application, description: readme.toString() });
+            }
+            return result;
+        });
+    }
+    copyApplicationFromDatabase(sourceDBUrl, sourceAppName, destAppName) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var sourcedb = yield mongodb.MongoClient.connect(sourceDBUrl);
+            yield this.deleteApplication(destAppName);
+            var fs = yield sourcedb.collection(sourceAppName).find().toArray();
+            yield this.db.collection(destAppName).insertMany(fs);
+            var files = yield sourcedb.collection(sourceAppName + ".files").find().toArray();
+            yield this.db.collection(destAppName + ".files").insertMany(files);
+            var chunks = yield sourcedb.collection(sourceAppName + ".chunks").find().toArray();
+            yield this.db.collection(destAppName + ".chunks").insertMany(chunks);
+            yield this.loadApplication(destAppName);
         });
     }
 }

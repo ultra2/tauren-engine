@@ -62,10 +62,14 @@ export default class Application {
     }
 
     public async uploadFileOrFolder(path:string, data:any) : Promise<model.stubInfo> {
-        var client = new model.Client(await this.engine.db.collection(this.name).findOne({ _id: "client" }))
-        var s = client.findOrCreateFileStub(path)
+        if (path == "controller.js"){
+            var F = Function('app', data)
+        }
+
+        var fs = new model.FileSystem(await this.engine.db.collection(this.name).findOne({ _id: "fs" }))
+        var s = fs.findOrCreateFileStub(path)
         if (s.stubNew){
-            await this.engine.db.collection(this.name).updateOne({ _id: "client" }, client, {w: 1, checkKeys: false})
+            await this.engine.db.collection(this.name).updateOne({ _id: "fs" }, fs, {w: 1, checkKeys: false})
         }
 
         if (s.stubType == "folder") return s
@@ -93,8 +97,8 @@ export default class Application {
     }
 
     public async loadFile(path:string) : Promise<fileInfo> {
-        var client = new model.Client(await this.engine.db.collection(this.name).findOne({ _id: "client" }))
-        var data = client.findOrCreateFileStub(path)
+        var fs = new model.FileSystem(await this.engine.db.collection(this.name).findOne({ _id: "fs" }))
+        var data = fs.findOrCreateFileStub(path)
         if (data == null){
             throw Error("not found")
         }
@@ -127,9 +131,9 @@ export default class Application {
     }
 
     public async garbageFiles() {
-        var client = new model.Client(await this.engine.db.collection(this.name).findOne({ _id: "client" }))
+        var fs = new model.FileSystem(await this.engine.db.collection(this.name).findOne({ _id: "fs" }))
         
-        var a =JSON.stringify(client._attachments)
+        var a =JSON.stringify(fs._attachments)
         var b = a.split("_fileId\":\"")
         var c = b.map(function(value){
             return value.substr(0,36)
