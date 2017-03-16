@@ -143,6 +143,59 @@ export default class Application {
         await this.engine.db.collection(this.name + ".files").remove({'_id': {$nin: d}})
         await this.engine.db.collection(this.name + ".chunks").remove({'files_id': {$nin: d}})
     }
+
+    public async installPackage(githubUrl:string, name:string) : Promise<Object> {
+        await this.garbageFiles()
+        
+        var githubUrlSplitted = githubUrl.split("/")
+        var zipUrl = ""
+
+        var owner = githubUrlSplitted[3]
+        var reponame = githubUrlSplitted[4].substr(0,githubUrlSplitted[4].length-4) //remove .git
+
+        var repository = await Utils.callService("https://api.github.com/repos/" + owner + "/" + reponame, { json: true })
+        if (repository.message){
+          return { message: "Repository not found!" }
+        }
+
+        var release = await Utils.callService("https://api.github.com/repos/" + owner + "/" + reponame + "/releases/latest", { json: true })
+        zipUrl = release.zipball_url || ("https://github.com/" + owner + "/" + reponame + "/archive/" + repository.default_branch + ".zip")
+
+        var zipFile = await Utils.callService(zipUrl, { encoding: null })
+        var zipHelper = new JSZip()
+        var zip = await zipHelper.loadAsync(zipFile)
+
+        //add package files
+        var fs = new model.FileSystem(await this.engine.db.collection(this.name).findOne({ _id: "fs" }))
+        
+        for (var key in zip.files){
+            var entry = zip.files[key]
+            var path = "packages/" + name + key.substr(key.indexOf("/"))
+            if (entry.dir) path = path.replace(".","_")
+            var s = fs.findOrCreateFileStub(path)
+
+            var tasks = []
+            if (s.stubType == "file"){
+                try{
+                    //var content = await entry.async("string")
+                    //var binarystring = await entry.async("binarystring")
+                    //var uint8array = await entry.async("uint8array") //Invalid non-string/buffer chunk
+                    //var arraybuffer = await entry.async("arraybuffer") //Invalid non-string/buffer chunk
+                    var nodebuffer = await entry.async("nodebuffer")
+                    await this.createFile(s.fileId, path, nodebuffer)
+                    console.log("created: " + path)
+                }
+                catch(err)
+                {
+                    console.log(err)
+                }
+                //tasks.push( this.createFile(s.fileId, path, content) )
+            }
+        }
+
+        await this.engine.db.collection(this.name).updateOne({ _id: "fs" }, fs, {w: 1, checkKeys: false})
+        return { message: "Package installed successfully!" }
+    }
 }
 
 export class fileInfo {

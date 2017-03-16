@@ -10,6 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 const mongodb = require("mongodb");
 const mime = require("mime");
 const gridfs = require("gridfs-stream");
+const JSZip = require('jszip');
 const utils_1 = require('./utils');
 const model = require('./model');
 class Application {
@@ -135,6 +136,45 @@ class Application {
             var d = c.slice(1);
             yield this.engine.db.collection(this.name + ".files").remove({ '_id': { $nin: d } });
             yield this.engine.db.collection(this.name + ".chunks").remove({ 'files_id': { $nin: d } });
+        });
+    }
+    installPackage(githubUrl, name) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this.garbageFiles();
+            var githubUrlSplitted = githubUrl.split("/");
+            var zipUrl = "";
+            var owner = githubUrlSplitted[3];
+            var reponame = githubUrlSplitted[4].substr(0, githubUrlSplitted[4].length - 4);
+            var repository = yield utils_1.default.callService("https://api.github.com/repos/" + owner + "/" + reponame, { json: true });
+            if (repository.message) {
+                return { message: "Repository not found!" };
+            }
+            var release = yield utils_1.default.callService("https://api.github.com/repos/" + owner + "/" + reponame + "/releases/latest", { json: true });
+            zipUrl = release.zipball_url || ("https://github.com/" + owner + "/" + reponame + "/archive/" + repository.default_branch + ".zip");
+            var zipFile = yield utils_1.default.callService(zipUrl, { encoding: null });
+            var zipHelper = new JSZip();
+            var zip = yield zipHelper.loadAsync(zipFile);
+            var fs = new model.FileSystem(yield this.engine.db.collection(this.name).findOne({ _id: "fs" }));
+            for (var key in zip.files) {
+                var entry = zip.files[key];
+                var path = "packages/" + name + key.substr(key.indexOf("/"));
+                if (entry.dir)
+                    path = path.replace(".", "_");
+                var s = fs.findOrCreateFileStub(path);
+                var tasks = [];
+                if (s.stubType == "file") {
+                    try {
+                        var nodebuffer = yield entry.async("nodebuffer");
+                        yield this.createFile(s.fileId, path, nodebuffer);
+                        console.log("created: " + path);
+                    }
+                    catch (err) {
+                        console.log(err);
+                    }
+                }
+            }
+            yield this.engine.db.collection(this.name).updateOne({ _id: "fs" }, fs, { w: 1, checkKeys: false });
+            return { message: "Package installed successfully!" };
         });
     }
 }
