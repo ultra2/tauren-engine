@@ -9,6 +9,7 @@ import * as mongodb from "mongodb"
 import * as model from './model'
 import Application from './Application'
 import * as gridfs from "gridfs-stream"
+import MongoFS from './MongoFS'
 import Utils from './utils'
 
 export default class Engine {
@@ -217,14 +218,14 @@ export default class Engine {
         }.bind(this))
     }
     
-    public async loadApplication(name:string): Promise<void> {
+    public async loadApplication(name:string) {
         if (this.applications[name]) return
         var app = new Application(name, this)
         this.applications[name] = app
-        await app.load()
+        await app.init()
     }
 
-    public async loadApplications(): Promise<void> {
+    public async loadApplications() {
         if (!this.db) return
         this.applications = {}
         var data = await this.db.listCollections({}).toArray() 
@@ -244,9 +245,9 @@ export default class Engine {
             _id: "fs",
             _attachments: {                        
             }
-        }, {w: 1, checkKeys: false})
+        }, {w: 1})
 
-        await app.createFile(fileId, "index.html", "hello")
+        await app.fs.createFile(fileId, "index.html", "hello")
 
         return app
     }
@@ -271,10 +272,11 @@ export default class Engine {
             if (application == "objectlabs-system") continue 
 
             var readme = ""
-            var fs = new model.FileSystem(await sourcedb.collection(application).findOne({ _id: "fs" }))
-            var data = fs.findOrCreateFileStub("README.html")
-            if (!data.stubNew) {
-                var filedoc = await sourcedb.collection(application + ".files").findOne({'_id': data.fileId})
+            var fs = new MongoFS(application, this.db)
+             
+            var data = await fs.findOrCreateStub("README.html", false)
+            if (data.stub) {
+                var filedoc = await sourcedb.collection(application + ".files").findOne({'_id': data.stub._fileId})
                 var gfs = gridfs(sourcedb, mongodb);
                 var readstream = gfs.createReadStream({
                     _id : filedoc._id,

@@ -30,6 +30,8 @@ npm install --save @types/node-uuid
 npm install --save @types/mime
 npm install --save @types/jszip
 npm install --save @types/request
+npm install --save @types/webpack
+npm install --save @types/memory-fs
 
 Commands
 ---------

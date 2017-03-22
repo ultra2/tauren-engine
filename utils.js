@@ -1,4 +1,5 @@
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 const request = require("request");
 class Utils {
     static fromStream(stream) {
@@ -62,5 +63,4 @@ class Utils {
         return newObj;
     }
 }
-Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = Utils;

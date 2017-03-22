@@ -23,7 +23,9 @@
     "@types/node-uuid": "0.0.28",
     "@types/request": "0.0.33",
     "@types/serve-static": "^1.7.31",
+    "@types/webpack": "^2.2.11",
     "body-parser": "^1.15.2",
+    "errno": "^0.1.4",
     "express": "^4.14.0",
     "gridfs-stream": "^1.1.1",
     "grunt": "^1.0.1",
@@ -38,6 +40,7 @@
     "request": "^2.79.0",
     "stream": "0.0.2",
     "tslint": "^3.15.1",
-    "typescript": "^2.0.7"
+    "typescript": "^2.0.7",
+    "webpack": "^2.2.1"
   }
 }
