@@ -32,9 +32,9 @@
     "node-uuid": "^1.4.7",
     "request": "^2.79.0",
     "webpack": "^2.2.1",
-    "stream": "0.0.2",
     "typescript": "^2.0.7",
     "ts-loader": "^2.0.3",
+    "stream": "0.0.2",
     "errno": "^0.1.4"
   },
    "devDependencies": {
