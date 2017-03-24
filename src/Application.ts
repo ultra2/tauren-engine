@@ -120,11 +120,21 @@ export default class Application {
 
     public async build() : Promise<Object> {
         var compiler = webpack({
-            context: '/src',
-            entry: { app: './script.js' },
+            entry: '/src/script.ts',
+            resolve: {
+                extensions: ['.ts']
+            },
+            module: {
+                rules: [
+                    { test: /\.ts$/, loader: 'ts', options: { transpileOnly: true }}
+                ]
+            },
+            plugins: [
+                new webpack.optimize.UglifyJsPlugin()
+            ],
             output: {
-                filename: 'build.js',
-                path: '/build'
+                path: '/dist',
+                filename: 'build.js'  
             }
         });
 
