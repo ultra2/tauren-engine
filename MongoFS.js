@@ -23,12 +23,14 @@ class MongoFS {
     isDir(path) {
         return __awaiter(this, void 0, void 0, function* () {
             var result = yield this.findOrCreateStub(path, false);
+            console.log("isDir " + path + " = " + (result.stub && result.stubType == "folder"));
             return result.stub && result.stubType == "folder";
         });
     }
     isFile(path) {
         return __awaiter(this, void 0, void 0, function* () {
             var result = yield this.findOrCreateStub(path, false);
+            console.log("isFile " + path + " = " + (result.stub && result.stubType == "file"));
             return result.stub && result.stubType == "file";
         });
     }
@@ -43,8 +45,13 @@ class MongoFS {
             }
         });
     }
+    readFileSync(_path, encoding) {
+        console.log("!!!!readFileSync!!!! " + _path);
+        return "";
+    }
     readFile(path, callback) {
         return __awaiter(this, void 0, void 0, function* () {
+            console.log("readfile " + path);
             try {
                 var fi = yield this.loadFile(path);
                 callback(null, fi.buffer);
@@ -66,6 +73,7 @@ class MongoFS {
         });
     }
     readlink(path, callback) {
+        console.log("readlink " + path);
         var err = {
             code: errors.code.ENOSYS.code,
             errno: errors.code.ENOSYS.errno,
@@ -76,6 +84,7 @@ class MongoFS {
     }
     stat(path, callback) {
         return __awaiter(this, void 0, void 0, function* () {
+            console.log("stat " + path);
             var trueFn = function () { return true; };
             var falseFn = function () { return false; };
             var err = null;

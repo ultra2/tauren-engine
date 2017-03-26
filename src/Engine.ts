@@ -31,6 +31,10 @@ export default class Engine {
     public async run() {
         await this.initRouter()
         await this.initApp()
+
+        await this.initMongo()
+        await this.loadApplications()
+        await this.updateStudio()
     }
 
     private async initApp() {
@@ -105,9 +109,6 @@ export default class Engine {
 
         this.router.get("/", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
             try{
-                await this.initMongo()
-                await this.loadApplications()
-                await this.updateStudio()
                 res.redirect('/studio/Static/getFile/index.html');
             }
             catch(err){

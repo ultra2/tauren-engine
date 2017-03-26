@@ -27,6 +27,9 @@ class Engine {
         return __awaiter(this, void 0, void 0, function* () {
             yield this.initRouter();
             yield this.initApp();
+            yield this.initMongo();
+            yield this.loadApplications();
+            yield this.updateStudio();
         });
     }
     initApp() {
@@ -89,9 +92,6 @@ class Engine {
             this.router.get("/", function (req, res, next) {
                 return __awaiter(this, void 0, void 0, function* () {
                     try {
-                        yield this.initMongo();
-                        yield this.loadApplications();
-                        yield this.updateStudio();
                         res.redirect('/studio/Static/getFile/index.html');
                     }
                     catch (err) {

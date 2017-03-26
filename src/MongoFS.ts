@@ -20,11 +20,13 @@ export default class MongoFS {
 
   public async isDir(path: string) {
     var result = await this.findOrCreateStub(path, false)
+    console.log("isDir " + path + " = " + (result.stub && result.stubType == "folder"))
     return result.stub && result.stubType == "folder"
   }
 
   public async isFile(path: string) {
     var result = await this.findOrCreateStub(path, false)
+    console.log("isFile " + path + " = " + (result.stub && result.stubType == "file"))
     return result.stub && result.stubType == "file"
   }
 
@@ -38,14 +40,20 @@ export default class MongoFS {
     }
   }
 
+  public readFileSync (_path, encoding) {
+    console.log("!!!!readFileSync!!!! " + _path)
+    return ""
+  }
+
   public async readFile(path: string, callback: (err: object, buffer: Uint8Array) => any) {
+    console.log("readfile " + path)
     try {
       var fi = await this.loadFile(path)
       callback(null, fi.buffer)
     }
     catch (err) {
       callback(err, null)
-    }
+    } 
   }
 
   public async writeFile(path: string, content: any, callback: (err: object, content: any) => any) {
@@ -59,6 +67,7 @@ export default class MongoFS {
   }
 
   public readlink(path: string, callback: (err: object, result: any) => any) {
+    console.log("readlink " + path)
     var err = {
       code: errors.code.ENOSYS.code,
       errno: errors.code.ENOSYS.errno,
@@ -69,6 +78,8 @@ export default class MongoFS {
   }
 
   public async stat(path: string, callback: (err: object, stat: any) => any) {
+    console.log("stat " + path)
+
     var trueFn = function () { return true; }
     var falseFn = function () { return false; }
 

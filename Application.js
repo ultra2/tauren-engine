@@ -104,22 +104,41 @@ class Application {
     build() {
         return __awaiter(this, void 0, void 0, function* () {
             var compiler = webpack({
-                context: '/src',
-                entry: { app: './script.js' },
+                context: '/',
+                entry: './src/script.ts',
+                resolve: {
+                    extensions: ['.ts']
+                },
+                module: {
+                    rules: [
+                        {
+                            test: /\.ts$/,
+                            loader: 'ts-loader',
+                            include: [
+                                __dirname
+                            ],
+                            options: { transpileOnly: true }
+                        }
+                    ]
+                },
                 output: {
-                    filename: 'build.js',
-                    path: '/build'
+                    path: '/dist',
+                    filename: 'build.js'
                 }
             });
-            compiler.inputFileSystem = this.fs;
+            compiler["inputFileSystem"] = this.fs;
+            compiler["resolvers"].normal.fileSystem = this.fs;
+            compiler["resolvers"].loader.fileSystem = this.fs;
+            compiler["resolvers"].context.fileSystem = this.fs;
             compiler.outputFileSystem = this.fs;
-            compiler.resolvers.normal.fileSystem = this.fs;
-            compiler.resolvers.context.fileSystem = this.fs;
             return new Promise(function (resolve, reject) {
                 compiler.run(function (err, stats) {
                     return __awaiter(this, void 0, void 0, function* () {
                         if (err) {
-                            reject({ message: err });
+                            resolve({ message: err });
+                        }
+                        if (stats.compilation.errors.length > 0) {
+                            resolve({ message: stats.compilation.errors[0].message });
                         }
                         resolve({ message: "Ok" });
                     });

@@ -13,7 +13,6 @@ import * as model from './model'
 import Engine from './Engine'
 import MongoFS from './MongoFS'
 
-
 export default class Application {
 
     private engine: Engine
@@ -119,34 +118,49 @@ export default class Application {
     }
 
     public async build() : Promise<Object> {
+        //var memfs = new MemoryFileSystem()
+
+        //memfs.mkdirpSync("/src");
+        //memfs.writeFileSync("/script.ts", await this.fs.loadFile("src/script.ts"));
+ 
         var compiler = webpack({
-            entry: '/src/script.ts',
+            context: '/',
+            entry: './src/script.ts',  
             resolve: {
                 extensions: ['.ts']
             },
             module: {
                 rules: [
-                    { test: /\.ts$/, loader: 'ts', options: { transpileOnly: true }}
+                    { 
+                        test: /\.ts$/, 
+                        loader: 'ts-loader',
+                        include: [
+                           __dirname
+                        ],
+                        options: { transpileOnly: true }
+                    }
                 ]
             },
-            plugins: [
-                new webpack.optimize.UglifyJsPlugin()
-            ],
             output: {
                 path: '/dist',
                 filename: 'build.js'  
             }
         });
-
-        compiler.inputFileSystem = this.fs
+        
+        compiler["inputFileSystem"] = this.fs //Entry module not found: Error: Can't resolve '/src/script.ts' in '/Users/ivanzsolt/Documents/openshift/v3/tauren-engine'
+        compiler["resolvers"].normal.fileSystem = this.fs //entry module filesystem ./src/script.ts' in '/Users/ivanzsolt/Documents/openshift/v3/tauren-engine'
+        compiler["resolvers"].loader.fileSystem = this.fs //node_modules -t keres a mongofs-ben
+        compiler["resolvers"].context.fileSystem = this.fs
+ 
         compiler.outputFileSystem = this.fs
-        compiler.resolvers.normal.fileSystem = this.fs
-        compiler.resolvers.context.fileSystem = this.fs
 
         return new Promise<Object>(function (resolve, reject) {
             compiler.run(async function (err, stats) {
                 if (err) {
-                    reject({ message: err })
+                    resolve({ message: err })
+                }
+                if (stats.compilation.errors.length > 0){
+                    resolve({ message: stats.compilation.errors[0].message })
                 }
                 resolve({ message: "Ok" })
             }.bind(this));
