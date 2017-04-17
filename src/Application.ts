@@ -1,6 +1,7 @@
 /// <reference path="_all.d.ts" />
 "use strict";
 
+import * as fs from "fs"
 import * as mongodb from "mongodb"
 import * as uuid from "node-uuid"
 import * as mime from "mime"
@@ -12,6 +13,7 @@ import Utils from './utils'
 import * as model from './model'
 import Engine from './Engine'
 import MongoFS from './MongoFS'
+import MongoSyncFS from './MongoSyncFS'
 
 export default class Application {
 
@@ -122,22 +124,41 @@ export default class Application {
 
         //memfs.mkdirpSync("/src");
         //memfs.writeFileSync("/script.ts", await this.fs.loadFile("src/script.ts"));
- 
+        
+        //var self = this
+
+        //function getMongoSystem(ts) {
+        //    var mongoSystem = {
+        //        readFile: function(fileName, encoding) {
+                    //self.fs.
+        //        }
+        //    }
+        //    return mongoSystem;
+        //}
+//var mock = require('mock-fs');
+
+//mock({
+///  'virtual': {
+//    'main.ts': 'alert("hello from mock!")'
+//  }
+//});
+
+var index = fs.readFileSync('/virtual/index2.html')
+
         var compiler = webpack({
-            context: '/',
-            entry: './src/script.ts',  
+            //context: '/',
+            entry: '.virtual/main.ts',  
             resolve: {
-                extensions: ['.ts']
+                extensions: ['.ts'] //ha nincs találat .ts -el is próbálkozik
             },
             module: {
                 rules: [
                     { 
-                        test: /\.ts$/, 
-                        loader: 'ts-loader',
-                        include: [
-                           __dirname
-                        ],
-                        options: { transpileOnly: true }
+                        test: /\.tsx?$/, 
+                        loader: 'ts-loader', 
+                        options: {
+                            transpileOnly: true
+                        } 
                     }
                 ]
             },
@@ -147,22 +168,67 @@ export default class Application {
             }
         });
         
-        compiler["inputFileSystem"] = this.fs //Entry module not found: Error: Can't resolve '/src/script.ts' in '/Users/ivanzsolt/Documents/openshift/v3/tauren-engine'
-        compiler["resolvers"].normal.fileSystem = this.fs //entry module filesystem ./src/script.ts' in '/Users/ivanzsolt/Documents/openshift/v3/tauren-engine'
-        compiler["resolvers"].loader.fileSystem = this.fs //node_modules -t keres a mongofs-ben
-        compiler["resolvers"].context.fileSystem = this.fs
+        //var ifs = compiler["inputFileSystem"]
+        //var ifsfunc = {}
+
+        //function divert(name, self){
+        //    ifsfunc[name] = ifs[name].bind(ifs)
+        //    ifs[name] = function(path, callback) {
+        //        console.log(name + " called: " + path)
+        //        if (path.indexOf("node_modules") != -1){
+        //            console.log("ifsfunc")
+        //            ifsfunc[name](path, callback)
+        //        }
+        //        else{
+        //            console.log("mongofs")
+        //            path = path.replace(__dirname,"")
+        //            self.fs[name](path, callback)
+        //        }
+        //    }.bind(self)
+        //}
+
+        //divert("stat", this)
+        //divert("readdir", this)
+        //divert("readFile", this)
+        ////divert("readJson", this)
+        //divert("readlink", this)
+        //divert("statSync", this)
+        //divert("readdirSync", this)
+        //divert("readFileSync", this)
+        ////divert("readJsonSync", this)
+        //divert("readlinkSync", this)
+
+        //compiler["inputFileSystem"] = this.fs //Entry module not found: Error: Can't resolve '/src/script.ts' in '/Users/ivanzsolt/Documents/openshift/v3/tauren-engine'
+        //compiler["resolvers"].normal.fileSystem = this.fs //entry module filesystem ./src/script.ts' in '/Users/ivanzsolt/Documents/openshift/v3/tauren-engine'
+        //compiler["resolvers"].loader.fileSystem = this.fs //node_modules -t keres a mongofs-ben
+        //compiler["resolvers"].context.fileSystem = this.fs
  
         compiler.outputFileSystem = this.fs
 
         return new Promise<Object>(function (resolve, reject) {
             compiler.run(async function (err, stats) {
+                var message = ""
                 if (err) {
-                    resolve({ message: err })
+                    message += (err.stack || err) 
+                    if (err.details) message += err.details
                 }
-                if (stats.compilation.errors.length > 0){
-                    resolve({ message: stats.compilation.errors[0].message })
-                }
-                resolve({ message: "Ok" })
+
+                const info = stats.toJson();
+
+                if (stats.hasErrors()) message += info.errors
+                if (stats.hasWarnings()) message += info.warnings
+                
+                //if (err) {
+                //    resolve({ message: err })
+                //    return
+                //}
+                //if (stats.compilation.errors.length > 0){
+                //    resolve({ message: stats.compilation.errors[0].message })
+                //    return
+                //}
+
+                if (message == "") message = "ok"
+                resolve({ message: message })
             }.bind(this));
         }.bind(this))
     }

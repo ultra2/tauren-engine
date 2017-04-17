@@ -15,6 +15,16 @@ const gridfs = require("gridfs-stream");
 const mime = require("mime");
 const uuid = require("node-uuid");
 const utils_1 = require("./utils");
+function MemoryFileSystemError(err, path) {
+    Error.call(this);
+    if (Error.captureStackTrace)
+        Error.captureStackTrace(this, arguments.callee);
+    this.code = err.code;
+    this.errno = err.errno;
+    this.message = err.description;
+    this.path = path;
+}
+MemoryFileSystemError.prototype = new Error();
 class MongoFS {
     constructor(application, db) {
         this.application = application;
@@ -49,6 +59,29 @@ class MongoFS {
         console.log("!!!!readFileSync!!!! " + _path);
         return "";
     }
+    access(_path, callback) {
+        console.log("!!!!access!!!! " + _path);
+        return "";
+    }
+    readJson(path, callback) {
+        return __awaiter(this, void 0, void 0, function* () {
+            console.log("readJson " + path);
+            try {
+                var fi = yield this.loadFile(path);
+                var data = JSON.parse(fi.buffer.toString("utf-8"));
+                callback(null, data);
+            }
+            catch (err) {
+                err = {
+                    code: errors.code.ENOENT.code,
+                    errno: errors.code.ENOENT.errno,
+                    message: errors.code.ENOENT.description,
+                    path: path
+                };
+                callback(err, null);
+            }
+        });
+    }
     readFile(path, callback) {
         return __awaiter(this, void 0, void 0, function* () {
             console.log("readfile " + path);
@@ -57,6 +90,12 @@ class MongoFS {
                 callback(null, fi.buffer);
             }
             catch (err) {
+                err = {
+                    code: errors.code.ENOENT.code,
+                    errno: errors.code.ENOENT.errno,
+                    message: errors.code.ENOENT.description,
+                    path: path
+                };
                 callback(err, null);
             }
         });
@@ -113,11 +152,10 @@ class MongoFS {
             }
             if (!stat) {
                 err = {
-                    code: "ENOENT",
-                    errno: 34,
-                    message: "no such file or directory",
-                    path: path,
-                    stack: ""
+                    code: errors.code.ENOENT.code,
+                    errno: errors.code.ENOENT.errno,
+                    message: errors.code.ENOENT.description,
+                    path: path
                 };
             }
             callback(err, stat);

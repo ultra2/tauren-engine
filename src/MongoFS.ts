@@ -1,11 +1,22 @@
 
-var errors = require("errno");
+var errors = require("errno")
 import * as mongodb from "mongodb"
 import * as model from './model'
 import * as gridfs from "gridfs-stream"
 import * as mime from "mime"
-import * as uuid from "node-uuid";
+import * as uuid from "node-uuid"
 import Utils from './utils'
+
+function MemoryFileSystemError(err, path) {
+	Error.call(this)
+	if (Error.captureStackTrace)
+		Error.captureStackTrace(this, arguments.callee)
+	this.code = err.code;
+	this.errno = err.errno;
+	this.message = err.description;
+	this.path = path;
+}
+MemoryFileSystemError.prototype = new Error();
 
 export default class MongoFS {
 
@@ -45,6 +56,29 @@ export default class MongoFS {
     return ""
   }
 
+  public access (_path, callback) {
+    console.log("!!!!access!!!! " + _path)
+    return ""
+  }
+
+  public async readJson(path: string, callback: (err: object, buffer: Uint8Array) => any) {   
+    console.log("readJson " + path)
+    try {
+      var fi = await this.loadFile(path)
+      var data = JSON.parse(fi.buffer.toString("utf-8"));
+      callback(null, data)
+    }
+    catch (err) {
+      err = {
+        code: errors.code.ENOENT.code,
+        errno: errors.code.ENOENT.errno,
+        message: errors.code.ENOENT.description,
+        path: path
+      }
+      callback(err, null)
+    } 
+  }
+
   public async readFile(path: string, callback: (err: object, buffer: Uint8Array) => any) {
     console.log("readfile " + path)
     try {
@@ -52,6 +86,12 @@ export default class MongoFS {
       callback(null, fi.buffer)
     }
     catch (err) {
+      err = {
+        code: errors.code.ENOENT.code,
+        errno: errors.code.ENOENT.errno,
+        message: errors.code.ENOENT.description,
+        path: path
+      }
       callback(err, null)
     } 
   }
@@ -112,11 +152,10 @@ export default class MongoFS {
 
     if (!stat) {
       err = {
-        code: "ENOENT",
-        errno: 34,
-        message: "no such file or directory",
-        path: path,
-        stack: ""
+        code: errors.code.ENOENT.code,
+        errno: errors.code.ENOENT.errno,
+        message: errors.code.ENOENT.description,
+        path: path
       }
     }
 

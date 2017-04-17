@@ -8,6 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const fs = require("fs");
 const JSZip = require("jszip");
 const webpack = require("webpack");
 const utils_1 = require("./utils");
@@ -103,21 +104,20 @@ class Application {
     }
     build() {
         return __awaiter(this, void 0, void 0, function* () {
+            var index = fs.readFileSync('/virtual/index2.html');
             var compiler = webpack({
-                context: '/',
-                entry: './src/script.ts',
+                entry: '.virtual/main.ts',
                 resolve: {
                     extensions: ['.ts']
                 },
                 module: {
                     rules: [
                         {
-                            test: /\.ts$/,
+                            test: /\.tsx?$/,
                             loader: 'ts-loader',
-                            include: [
-                                __dirname
-                            ],
-                            options: { transpileOnly: true }
+                            options: {
+                                transpileOnly: true
+                            }
                         }
                     ]
                 },
@@ -126,21 +126,24 @@ class Application {
                     filename: 'build.js'
                 }
             });
-            compiler["inputFileSystem"] = this.fs;
-            compiler["resolvers"].normal.fileSystem = this.fs;
-            compiler["resolvers"].loader.fileSystem = this.fs;
-            compiler["resolvers"].context.fileSystem = this.fs;
             compiler.outputFileSystem = this.fs;
             return new Promise(function (resolve, reject) {
                 compiler.run(function (err, stats) {
                     return __awaiter(this, void 0, void 0, function* () {
+                        var message = "";
                         if (err) {
-                            resolve({ message: err });
+                            message += (err.stack || err);
+                            if (err.details)
+                                message += err.details;
                         }
-                        if (stats.compilation.errors.length > 0) {
-                            resolve({ message: stats.compilation.errors[0].message });
-                        }
-                        resolve({ message: "Ok" });
+                        const info = stats.toJson();
+                        if (stats.hasErrors())
+                            message += info.errors;
+                        if (stats.hasWarnings())
+                            message += info.warnings;
+                        if (message == "")
+                            message = "ok";
+                        resolve({ message: message });
                     });
                 }.bind(this));
             }.bind(this));

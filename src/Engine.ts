@@ -1,6 +1,7 @@
 /// <reference path="_all.d.ts" />
 "use strict";
 
+import * as fs from "fs"
 import * as express from "express"
 import * as bodyParser from "body-parser"
 import * as request from "request"
@@ -10,7 +11,11 @@ import * as model from './model'
 import Application from './Application'
 import * as gridfs from "gridfs-stream"
 import MongoFS from './MongoFS'
+import MongoSyncFS from './MongoSyncFS'
 import Utils from './utils'
+import MemoryFileSystem = require('memory-fs') //You need to import export = style libraries with import require. This is because of the ES6 spec.
+
+var Binding = require('./binding');
 
 export default class Engine {
 
@@ -19,16 +24,28 @@ export default class Engine {
     public applications: Object
     public router: express.Router
     public app: express.Application
+    public cache: MemoryFileSystem
+    private binding: any
     public templateUrl: string
 
     constructor() {
         this.info = {}
         this.applications = {}
+        this.cache = new MemoryFileSystem()
+
+        //test
+	    this.cache.mkdirpSync("/virtual");
+	    this.cache.writeFileSync("/virtual/index2.html", "Hello World from memory!!!");
+
+        this.binding = new Binding(this.cache)
+
         this.templateUrl = "mongodb://guest:guest@ds056549.mlab.com:56549/tauren"
         //this.templateUrl = "mongodb://guest:guest@ds117189.mlab.com:17189/ide"
     }
 
     public async run() {
+        this.overrideBinding()
+        
         await this.initRouter()
         await this.initApp()
 
@@ -79,6 +96,11 @@ export default class Engine {
         if (this.db == null){
             try {
                 this.db = await mongodb.MongoClient.connect(process.env.WORKING_DB_URL)
+
+                //var workingHost = process.env.WORKING_DB_URL.substring(process.env.WORKING_DB_URL.indexOf('@')+1)
+                //var syncfs = new MongoSyncFS("tauren", this.db)
+                //syncfs.loadFS()
+
                 console.log("WORKING Mongo initialized!")
                 this.info["workingDBConnected"] = true
             }
@@ -310,5 +332,18 @@ export default class Engine {
         await this.db.collection(destAppName + ".chunks").insertMany(chunks)
 
         await this.loadApplication(destAppName)
+    }
+
+    private overrideBinding(){
+        fs["realFunctions"] = {}
+        fs["memoryFunctions"] = {}
+        for (var key in this.binding) {
+            if (typeof this.binding[key] === 'function') {
+                fs["realFunctions"][key] = fs[key]
+                fs[key] = this.binding[key].bind(this.binding);
+            } else {
+                fs[key] = this.binding[key];
+            }
+        }
     }
 }

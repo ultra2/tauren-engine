@@ -8,6 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const fs = require("fs");
 const express = require("express");
 const bodyParser = require("body-parser");
 const request = require("request");
@@ -17,14 +18,21 @@ const Application_1 = require("./Application");
 const gridfs = require("gridfs-stream");
 const MongoFS_1 = require("./MongoFS");
 const utils_1 = require("./utils");
+const MemoryFileSystem = require("memory-fs");
+var Binding = require('./binding');
 class Engine {
     constructor() {
         this.info = {};
         this.applications = {};
+        this.cache = new MemoryFileSystem();
+        this.cache.mkdirpSync("/virtual");
+        this.cache.writeFileSync("/virtual/index2.html", "Hello World from memory!!!");
+        this.binding = new Binding(this.cache);
         this.templateUrl = "mongodb://guest:guest@ds056549.mlab.com:56549/tauren";
     }
     run() {
         return __awaiter(this, void 0, void 0, function* () {
+            this.overrideBinding();
             yield this.initRouter();
             yield this.initApp();
             yield this.initMongo();
@@ -295,6 +303,19 @@ class Engine {
             yield this.db.collection(destAppName + ".chunks").insertMany(chunks);
             yield this.loadApplication(destAppName);
         });
+    }
+    overrideBinding() {
+        fs["realFunctions"] = {};
+        fs["memoryFunctions"] = {};
+        for (var key in this.binding) {
+            if (typeof this.binding[key] === 'function') {
+                fs["realFunctions"][key] = fs[key];
+                fs[key] = this.binding[key].bind(this.binding);
+            }
+            else {
+                fs[key] = this.binding[key];
+            }
+        }
     }
 }
 exports.default = Engine;
