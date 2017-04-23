@@ -11,7 +11,6 @@ import * as model from './model'
 import Application from './Application'
 import * as gridfs from "gridfs-stream"
 import MongoFS from './MongoFS'
-import MongoSyncFS from './MongoSyncFS'
 import Utils from './utils'
 import MemoryFileSystem = require('memory-fs') //You need to import export = style libraries with import require. This is because of the ES6 spec.
 import Binding from './Binding2'
@@ -36,7 +35,9 @@ export default class Engine {
 
         //test
 	    this.cache.mkdirpSync("/virtual");
-	    this.cache.writeFileSync("/virtual/main.ts", "alert('hello from virtual!!!)");
+	    this.cache.writeFileSync("/virtual/main.ts", "alert('hello from virtual!!')");
+        var tsconfig = fs.readFileSync("./tsconfig.json")
+        this.cache.writeFileSync("/virtual/tsconfig.json", tsconfig);
 
         this.binding = new Binding(this.cache)
 
@@ -356,7 +357,7 @@ export default class Engine {
         for (var methodName in fs) {
             if (typeof fs[methodName] === 'function' && methodName[0] != methodName[0].toUpperCase()) {
                 fs["realFunctions"][methodName] = fs[methodName]
-                fs[methodName] = this.methodFactory3(methodName)
+                fs[methodName] = this.methodFactory2(methodName)
             //} else {
             //    fs[key] = this.binding[key];
             }
@@ -375,8 +376,8 @@ export default class Engine {
         return function(){
             console.log(methodName, arguments[0])
 
-            if (["access", "accessSync", "chmod", "chmodSync", "chown", "chownSync", "createReadStream", "createWriteStream", "exists", "existsSync", "lchown", "lchownSync", "lstat", "lstatSync", "open", "openSync", "readdir", "readdirSync", "readFile", "readFileSync", "leadlink", "leadlinkSync", "rmdir", "rmdirSync", "stat", "statSync"].indexOf(methodName) != -1){
-                if (arguments[0].substring(0,9) == "/virtual/") {
+            if (["access", "accessSync", "chmod", "chmodSync", "chown", "chownSync", "createReadStream", "createWriteStream", "exists", "existsSync", "lchown", "lchownSync", "lstat", "lstatSync", "open", "openSync", "readdir", "readdirSync", "readFile", "readFileSync", "readlink", "readlinkSync", "rmdir", "rmdirSync", "stat", "statSync"].indexOf(methodName) != -1){
+                if (arguments[0].substring(0,8) == "/virtual") {
                     console.log("from cache")
                     return this.cache[methodName].apply(this.cache, arguments)
                 }
@@ -399,7 +400,7 @@ export default class Engine {
             if (this.currdepth == 0){
                 this.status = 1
                 if (["access", "accessSync", "chmod", "chmodSync", "chown", "chownSync", "createReadStream", "createWriteStream", "exists", "existsSync", "lchown", "lchownSync", "lstat", "lstatSync", "open", "openSync", "readdir", "readdirSync", "readFile", "readFileSync", "leadlink", "leadlinkSync", "rmdir", "rmdirSync", "stat", "statSync"].indexOf(methodName) != -1){
-                    if (arguments[0].substring(0,9) == "/virtual/") {
+                    if (arguments[0].substring(0,8) == "/virtual") {
                         this.status = 2
                     }
                 }

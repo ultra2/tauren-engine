@@ -13,7 +13,6 @@ import Utils from './utils'
 import * as model from './model'
 import Engine from './Engine'
 import MongoFS from './MongoFS'
-import MongoSyncFS from './MongoSyncFS'
 
 export default class Application {
 
