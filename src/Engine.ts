@@ -14,8 +14,9 @@ import MongoFS from './MongoFS'
 import MongoSyncFS from './MongoSyncFS'
 import Utils from './utils'
 import MemoryFileSystem = require('memory-fs') //You need to import export = style libraries with import require. This is because of the ES6 spec.
+import Binding from './Binding2'
 
-var Binding = require('./binding');
+//var Binding = require('./binding');
 
 export default class Engine {
 
@@ -35,7 +36,7 @@ export default class Engine {
 
         //test
 	    this.cache.mkdirpSync("/virtual");
-	    this.cache.writeFileSync("/virtual/index2.html", "Hello World from memory!!!");
+	    this.cache.writeFileSync("/virtual/main.ts", "alert('hello from virtual!!!)");
 
         this.binding = new Binding(this.cache)
 
@@ -44,7 +45,7 @@ export default class Engine {
     }
 
     public async run() {
-        this.overrideBinding()
+        this.overrideBinding2()
         
         await this.initRouter()
         await this.initApp()
@@ -337,13 +338,95 @@ export default class Engine {
     private overrideBinding(){
         fs["realFunctions"] = {}
         fs["memoryFunctions"] = {}
-        for (var key in this.binding) {
-            if (typeof this.binding[key] === 'function') {
-                fs["realFunctions"][key] = fs[key]
-                fs[key] = this.binding[key].bind(this.binding);
-            } else {
-                fs[key] = this.binding[key];
+        var methods = Object.getOwnPropertyNames(Binding.prototype);
+        for (var i in methods) {
+            //if (typeof this.binding[key] === 'function') {
+                var method = methods[i]
+                fs["realFunctions"][method] = fs[method]
+                fs[method] = this.binding[method].bind(this.binding);
+            //} else {
+            //    fs[key] = this.binding[key];
+            //}
+        }
+    }
+
+    private overrideBinding2(){
+        fs["realFunctions"] = {}
+        fs["memoryFunctions"] = {}
+        for (var methodName in fs) {
+            if (typeof fs[methodName] === 'function' && methodName[0] != methodName[0].toUpperCase()) {
+                fs["realFunctions"][methodName] = fs[methodName]
+                fs[methodName] = this.methodFactory3(methodName)
+            //} else {
+            //    fs[key] = this.binding[key];
             }
         }
+    }
+
+    private methodFactory3(methodName): Function{
+        return function(){
+            console.log(methodName, arguments[0])
+            var result = fs["realFunctions"][methodName].apply(fs, arguments)
+            return result
+        }.bind(this)
+    }
+
+    private methodFactory2(methodName): Function{
+        return function(){
+            console.log(methodName, arguments[0])
+
+            if (["access", "accessSync", "chmod", "chmodSync", "chown", "chownSync", "createReadStream", "createWriteStream", "exists", "existsSync", "lchown", "lchownSync", "lstat", "lstatSync", "open", "openSync", "readdir", "readdirSync", "readFile", "readFileSync", "leadlink", "leadlinkSync", "rmdir", "rmdirSync", "stat", "statSync"].indexOf(methodName) != -1){
+                if (arguments[0].substring(0,9) == "/virtual/") {
+                    console.log("from cache")
+                    return this.cache[methodName].apply(this.cache, arguments)
+                }
+            }
+
+            console.log("from fs")
+            return fs["realFunctions"][methodName].apply(fs, arguments)
+
+        }.bind(this)
+    }
+
+    private currdepth: number = 0 //current position in call stack, change fs only if 0
+    private status: number = 1 //1: fs, 2: cache, 3:mongo
+    private currFS: any
+
+    private methodFactory(methodName): Function{
+        return function(){
+            console.log(methodName, arguments, this.status, this.currdepth)
+
+            if (this.currdepth == 0){
+                this.status = 1
+                if (["access", "accessSync", "chmod", "chmodSync", "chown", "chownSync", "createReadStream", "createWriteStream", "exists", "existsSync", "lchown", "lchownSync", "lstat", "lstatSync", "open", "openSync", "readdir", "readdirSync", "readFile", "readFileSync", "leadlink", "leadlinkSync", "rmdir", "rmdirSync", "stat", "statSync"].indexOf(methodName) != -1){
+                    if (arguments[0].substring(0,9) == "/virtual/") {
+                        this.status = 2
+                    }
+                }
+            }
+
+            this.currdepth += 1
+
+            var result = null
+
+            try {
+                if (this.status == 1){
+                    result = fs["realFunctions"][methodName].apply(fs, arguments)
+                }
+                else {
+                    result = this.cache[methodName].apply(this.cache, arguments)
+                }
+                this.currdepth -= 1
+
+                return result
+            }
+            catch (err){
+                debugger
+            }
+            finally {
+                debugger
+            }
+            
+        }.bind(this)
     }
 }

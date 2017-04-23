@@ -135,19 +135,19 @@ export default class Application {
         //    }
         //    return mongoSystem;
         //}
-//var mock = require('mock-fs');
 
-//mock({
-///  'virtual': {
-//    'main.ts': 'alert("hello from mock!")'
-//  }
-//});
+        //var mock = require('mock-fs');
+        //mock({
+        ///  'virtual': {
+        //    'main.ts': 'alert("hello from mock!")'
+        //  }
+        //});
 
-var index = fs.readFileSync('/virtual/index2.html')
+        //var index = fs.readFileSync('/virtual/index2.html')
 
         var compiler = webpack({
             //context: '/',
-            entry: '.virtual/main.ts',  
+            entry: '/virtual/main.ts',  
             resolve: {
                 extensions: ['.ts'] //ha nincs találat .ts -el is próbálkozik
             },
@@ -198,10 +198,10 @@ var index = fs.readFileSync('/virtual/index2.html')
         ////divert("readJsonSync", this)
         //divert("readlinkSync", this)
 
-        //compiler["inputFileSystem"] = this.fs //Entry module not found: Error: Can't resolve '/src/script.ts' in '/Users/ivanzsolt/Documents/openshift/v3/tauren-engine'
-        //compiler["resolvers"].normal.fileSystem = this.fs //entry module filesystem ./src/script.ts' in '/Users/ivanzsolt/Documents/openshift/v3/tauren-engine'
-        //compiler["resolvers"].loader.fileSystem = this.fs //node_modules -t keres a mongofs-ben
-        //compiler["resolvers"].context.fileSystem = this.fs
+        compiler["inputFileSystem"] = fs //Entry module not found: Error: Can't resolve '/src/script.ts' in '/Users/ivanzsolt/Documents/openshift/v3/tauren-engine'
+        compiler["resolvers"].normal.fileSystem = fs //entry module filesystem ./src/script.ts' in '/Users/ivanzsolt/Documents/openshift/v3/tauren-engine'
+        compiler["resolvers"].loader.fileSystem = fs //node_modules -t keres a mongofs-ben
+        compiler["resolvers"].context.fileSystem = fs
  
         compiler.outputFileSystem = this.fs
 

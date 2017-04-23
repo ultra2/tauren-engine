@@ -104,9 +104,8 @@ class Application {
     }
     build() {
         return __awaiter(this, void 0, void 0, function* () {
-            var index = fs.readFileSync('/virtual/index2.html');
             var compiler = webpack({
-                entry: '.virtual/main.ts',
+                entry: '/virtual/main.ts',
                 resolve: {
                     extensions: ['.ts']
                 },
@@ -126,6 +125,10 @@ class Application {
                     filename: 'build.js'
                 }
             });
+            compiler["inputFileSystem"] = fs;
+            compiler["resolvers"].normal.fileSystem = fs;
+            compiler["resolvers"].loader.fileSystem = fs;
+            compiler["resolvers"].context.fileSystem = fs;
             compiler.outputFileSystem = this.fs;
             return new Promise(function (resolve, reject) {
                 compiler.run(function (err, stats) {

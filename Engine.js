@@ -19,20 +19,22 @@ const gridfs = require("gridfs-stream");
 const MongoFS_1 = require("./MongoFS");
 const utils_1 = require("./utils");
 const MemoryFileSystem = require("memory-fs");
-var Binding = require('./binding');
+const Binding2_1 = require("./Binding2");
 class Engine {
     constructor() {
+        this.currdepth = 0;
+        this.status = 1;
         this.info = {};
         this.applications = {};
         this.cache = new MemoryFileSystem();
         this.cache.mkdirpSync("/virtual");
-        this.cache.writeFileSync("/virtual/index2.html", "Hello World from memory!!!");
-        this.binding = new Binding(this.cache);
+        this.cache.writeFileSync("/virtual/main.ts", "alert('hello from virtual!!!)");
+        this.binding = new Binding2_1.default(this.cache);
         this.templateUrl = "mongodb://guest:guest@ds056549.mlab.com:56549/tauren";
     }
     run() {
         return __awaiter(this, void 0, void 0, function* () {
-            this.overrideBinding();
+            this.overrideBinding2();
             yield this.initRouter();
             yield this.initApp();
             yield this.initMongo();
@@ -307,15 +309,73 @@ class Engine {
     overrideBinding() {
         fs["realFunctions"] = {};
         fs["memoryFunctions"] = {};
-        for (var key in this.binding) {
-            if (typeof this.binding[key] === 'function') {
-                fs["realFunctions"][key] = fs[key];
-                fs[key] = this.binding[key].bind(this.binding);
-            }
-            else {
-                fs[key] = this.binding[key];
+        var methods = Object.getOwnPropertyNames(Binding2_1.default.prototype);
+        for (var i in methods) {
+            var method = methods[i];
+            fs["realFunctions"][method] = fs[method];
+            fs[method] = this.binding[method].bind(this.binding);
+        }
+    }
+    overrideBinding2() {
+        fs["realFunctions"] = {};
+        fs["memoryFunctions"] = {};
+        for (var methodName in fs) {
+            if (typeof fs[methodName] === 'function' && methodName[0] != methodName[0].toUpperCase()) {
+                fs["realFunctions"][methodName] = fs[methodName];
+                fs[methodName] = this.methodFactory3(methodName);
             }
         }
+    }
+    methodFactory3(methodName) {
+        return function () {
+            console.log(methodName, arguments[0]);
+            var result = fs["realFunctions"][methodName].apply(fs, arguments);
+            return result;
+        }.bind(this);
+    }
+    methodFactory2(methodName) {
+        return function () {
+            console.log(methodName, arguments[0]);
+            if (["access", "accessSync", "chmod", "chmodSync", "chown", "chownSync", "createReadStream", "createWriteStream", "exists", "existsSync", "lchown", "lchownSync", "lstat", "lstatSync", "open", "openSync", "readdir", "readdirSync", "readFile", "readFileSync", "leadlink", "leadlinkSync", "rmdir", "rmdirSync", "stat", "statSync"].indexOf(methodName) != -1) {
+                if (arguments[0].substring(0, 9) == "/virtual/") {
+                    console.log("from cache");
+                    return this.cache[methodName].apply(this.cache, arguments);
+                }
+            }
+            console.log("from fs");
+            return fs["realFunctions"][methodName].apply(fs, arguments);
+        }.bind(this);
+    }
+    methodFactory(methodName) {
+        return function () {
+            console.log(methodName, arguments, this.status, this.currdepth);
+            if (this.currdepth == 0) {
+                this.status = 1;
+                if (["access", "accessSync", "chmod", "chmodSync", "chown", "chownSync", "createReadStream", "createWriteStream", "exists", "existsSync", "lchown", "lchownSync", "lstat", "lstatSync", "open", "openSync", "readdir", "readdirSync", "readFile", "readFileSync", "leadlink", "leadlinkSync", "rmdir", "rmdirSync", "stat", "statSync"].indexOf(methodName) != -1) {
+                    if (arguments[0].substring(0, 9) == "/virtual/") {
+                        this.status = 2;
+                    }
+                }
+            }
+            this.currdepth += 1;
+            var result = null;
+            try {
+                if (this.status == 1) {
+                    result = fs["realFunctions"][methodName].apply(fs, arguments);
+                }
+                else {
+                    result = this.cache[methodName].apply(this.cache, arguments);
+                }
+                this.currdepth -= 1;
+                return result;
+            }
+            catch (err) {
+                debugger;
+            }
+            finally {
+                debugger;
+            }
+        }.bind(this);
     }
 }
 exports.default = Engine;
