@@ -144,14 +144,15 @@ export default class Application {
 
         //var index = fs.readFileSync('/virtual/index2.html')
 
-        this.cache.mkdirpSync("/virtual");
+	//Load source into cache 
+        this.engine.cache.mkdirpSync("/virtual/" + this.name);
 	    this.cache.writeFileSync("/virtual/main.ts", "alert('hello from virtual!!')");
         var tsconfig = fs.readFileSync("./tsconfig.json")
         this.cache.writeFileSync("/virtual/tsconfig.json", tsconfig);
         
         var compiler = webpack({
             //context: '/',
-            entry: '/virtual/main.ts',  
+            entry: '/virtual/' + this.name + '/main.ts',  
             resolve: {
                 extensions: ['.ts'] //ha nincs találat .ts -el is próbálkozik
             },
