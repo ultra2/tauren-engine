@@ -22,12 +22,14 @@ export default class Engine {
     public router: express.Router
     public app: express.Application
     public cache: MemoryFileSystem
+    public mongo: MongoFS
     public templateUrl: string
 
     constructor() {
         this.info = {}
         this.applications = {}
         this.cache = new MemoryFileSystem()
+        this.mongo = new MongoFS(this.db)
         this.templateUrl = "mongodb://guest:guest@ds056549.mlab.com:56549/tauren"
         //this.templateUrl = "mongodb://guest:guest@ds117189.mlab.com:17189/ide"
     }
