@@ -12,7 +12,6 @@ import * as webpack from 'webpack'
 import Utils from './utils'
 import * as model from './model'
 import Engine from './Engine'
-import MongoFS from './MongoFS'
 
 export default class Application {
 
