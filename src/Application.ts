@@ -18,13 +18,11 @@ export default class Application {
     private engine: Engine
     private name: string
     private loaded: boolean
-    public fs: MongoFS
     public controllers: any   
 
     constructor(application: string, engine: Engine) {
         this.name = application
         this.engine = engine
-        this.fs = new MongoFS(this.name, this.engine.db)
     }
 
     public async init(){
@@ -167,7 +165,7 @@ export default class Application {
                 ]
             },
             output: {
-                path: '/dist',
+                path: '/mongo/' + this.name + '/dist',
                 filename: 'build.js'  
             }
         });
@@ -207,7 +205,7 @@ export default class Application {
         compiler["resolvers"].loader.fileSystem = fs //node_modules -t keres a mongofs-ben
         compiler["resolvers"].context.fileSystem = fs
  
-        compiler.outputFileSystem = this.fs
+        compiler.outputFileSystem = this.engine.mongo
 
         return new Promise<Object>(function (resolve, reject) {
             compiler.run(async function (err, stats) {
