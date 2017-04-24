@@ -13,9 +13,6 @@ import * as gridfs from "gridfs-stream"
 import MongoFS from './MongoFS'
 import Utils from './utils'
 import MemoryFileSystem = require('memory-fs') //You need to import export = style libraries with import require. This is because of the ES6 spec.
-import Binding from './Binding2'
-
-//var Binding = require('./binding');
 
 export default class Engine {
 
@@ -25,22 +22,12 @@ export default class Engine {
     public router: express.Router
     public app: express.Application
     public cache: MemoryFileSystem
-    private binding: any
     public templateUrl: string
 
     constructor() {
         this.info = {}
         this.applications = {}
         this.cache = new MemoryFileSystem()
-
-        //test
-	    this.cache.mkdirpSync("/virtual");
-	    this.cache.writeFileSync("/virtual/main.ts", "alert('hello from virtual!!')");
-        var tsconfig = fs.readFileSync("./tsconfig.json")
-        this.cache.writeFileSync("/virtual/tsconfig.json", tsconfig);
-
-        this.binding = new Binding(this.cache)
-
         this.templateUrl = "mongodb://guest:guest@ds056549.mlab.com:56549/tauren"
         //this.templateUrl = "mongodb://guest:guest@ds117189.mlab.com:17189/ide"
     }
