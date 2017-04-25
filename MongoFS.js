@@ -26,21 +26,21 @@ function MemoryFileSystemError(err, path) {
 }
 MemoryFileSystemError.prototype = new Error();
 class MongoFS {
-    constructor(application, db) {
-        this.application = application;
+    constructor(db) {
         this.db = db;
+        this.fscache = {};
     }
-    isDir(path) {
+    isDir(app, relpath) {
         return __awaiter(this, void 0, void 0, function* () {
-            var result = yield this.findOrCreateStub(path, false);
-            console.log("isDir " + path + " = " + (result.stub && result.stubType == "folder"));
+            var result = yield this.findOrCreateStub(app, relpath, false);
+            console.log("isDir " + relpath + " = " + (result.stub && result.stubType == "folder"));
             return result.stub && result.stubType == "folder";
         });
     }
-    isFile(path) {
+    isFile(app, relpath) {
         return __awaiter(this, void 0, void 0, function* () {
-            var result = yield this.findOrCreateStub(path, false);
-            console.log("isFile " + path + " = " + (result.stub && result.stubType == "file"));
+            var result = yield this.findOrCreateStub(app, relpath, false);
+            console.log("isFile " + relpath + " = " + (result.stub && result.stubType == "file"));
             return result.stub && result.stubType == "file";
         });
     }
@@ -124,11 +124,12 @@ class MongoFS {
     stat(path, callback) {
         return __awaiter(this, void 0, void 0, function* () {
             console.log("stat " + path);
+            var ppath = this.parsePath(path);
             var trueFn = function () { return true; };
             var falseFn = function () { return false; };
             var err = null;
             var stat = null;
-            if (yield this.isDir(path)) {
+            if (yield this.isDir(ppath.app, ppath.relpath)) {
                 stat = {
                     isFile: falseFn,
                     isDirectory: trueFn,
@@ -139,7 +140,7 @@ class MongoFS {
                     isSocket: falseFn
                 };
             }
-            if (yield this.isFile(path)) {
+            if (yield this.isFile(ppath.app, ppath.relpath)) {
                 stat = {
                     isFile: trueFn,
                     isDirectory: falseFn,
@@ -245,13 +246,13 @@ class MongoFS {
             return this.normalize(path + "/" + request);
         return this.normalize(path + "/" + request);
     }
-    findOrCreateStub(path, create) {
+    findOrCreateStub(app, relpath, create) {
         return __awaiter(this, void 0, void 0, function* () {
             var result = new model.stubInfo();
-            path = path.replace(/\./g, '*');
-            path = path.replace(/^(\/)/, "");
-            result.stubType = (path.indexOf('*') != -1) ? "file" : "folder";
-            var splitted = path.split('/');
+            relpath = relpath.replace(/\./g, '*');
+            relpath = relpath.replace(/^(\/)/, "");
+            result.stubType = (relpath.indexOf('*') != -1) ? "file" : "folder";
+            var splitted = relpath.split('/');
             var fileName = "";
             var dirs = [];
             if (result.stubType == "file") {
@@ -262,8 +263,8 @@ class MongoFS {
                 fileName = "";
                 dirs = splitted.slice(0, splitted.length);
             }
-            yield this.loadFS();
-            result.stub = this.fsobj["_attachments"];
+            yield this.loadFS(app);
+            result.stub = this.fscache[app]["_attachments"];
             for (var i = 0; i < dirs.length; i++) {
                 var dir = dirs[i];
                 if (!result.stub[dir]) {
@@ -290,17 +291,24 @@ class MongoFS {
             return result;
         });
     }
+    parsePath(path) {
+        var result = new parsedPath();
+        result.app = path.substring(0, path.indexOf('/'));
+        result.relpath = path.substring(path.indexOf('/'));
+        return result;
+    }
     loadFile(path) {
         return __awaiter(this, void 0, void 0, function* () {
-            var result = yield this.findOrCreateStub(path, false);
+            var ppath = this.parsePath(path);
+            var result = yield this.findOrCreateStub(ppath.app, ppath.relpath, false);
             if (!result.stub) {
                 throw Error("not found");
             }
-            var filedoc = yield this.db.collection(this.application + ".files").findOne({ '_id': result.stub._fileId });
+            var filedoc = yield this.db.collection(ppath.app + ".files").findOne({ '_id': result.stub._fileId });
             var gfs = gridfs(this.db, mongodb);
             var readstream = gfs.createReadStream({
                 _id: filedoc._id,
-                root: this.application
+                root: ppath.app
             });
             try {
                 var buffer = yield utils_1.default.fromStream(readstream);
@@ -313,68 +321,71 @@ class MongoFS {
     }
     uploadFileOrFolder(path, data) {
         return __awaiter(this, void 0, void 0, function* () {
-            if (path == "controller.js") {
+            var ppath = this.parsePath(path);
+            if (ppath.relpath == "controller.js") {
                 var F = Function('app', data);
             }
-            var result = yield this.findOrCreateStub(path, true);
+            var result = yield this.findOrCreateStub(ppath.app, ppath.relpath, true);
             if (result.stubNew) {
-                yield this.saveFS();
+                yield this.saveFS(ppath.app);
             }
             if (result.stubType == "folder")
                 return result;
             if (result.stubType == "file") {
-                yield this.createFile(result.stub._fileId, path, data);
+                yield this.createFile(result.stub._fileId, ppath.app, ppath.relpath, data);
                 return result;
             }
         });
     }
-    loadFS() {
+    loadFS(app) {
         return __awaiter(this, void 0, void 0, function* () {
-            if (this.fsobj)
+            if (this.fscache[app])
                 return;
-            this.fsobj = yield this.db.collection(this.application).findOne({ _id: "fs" });
+            this.fscache[app] = yield this.db.collection(app).findOne({ _id: "fs" });
         });
     }
-    saveFS() {
+    saveFS(app) {
         return __awaiter(this, void 0, void 0, function* () {
-            yield this.db.collection(this.application).updateOne({ _id: "fs" }, this.fsobj, { w: 1 });
+            yield this.db.collection(app).updateOne({ _id: "fs" }, this.fscache[app], { w: 1 });
         });
     }
-    createFile(id, path, data) {
+    createFile(id, app, relpath, data) {
         return __awaiter(this, void 0, void 0, function* () {
             var gfs = gridfs(this.db, mongodb);
             var writestream = gfs.createWriteStream({
                 _id: id,
                 filename: id,
-                root: this.application,
-                content_type: mime.lookup(path)
+                root: app,
+                content_type: mime.lookup(relpath)
             });
             return yield utils_1.default.toStream(data, writestream);
         });
     }
-    deleteFile(id) {
+    deleteFile(id, app) {
         return __awaiter(this, void 0, void 0, function* () {
             var gfs = gridfs(this.db, mongodb);
             gfs.remove({
                 _id: id,
-                root: this.application
+                root: app
             }, function (err) {
                 console.log(err);
             });
         });
     }
-    garbageFiles() {
+    garbageFiles(app) {
         return __awaiter(this, void 0, void 0, function* () {
-            yield this.loadFS();
-            var a = JSON.stringify(this.fsobj["_attachments"]);
+            yield this.loadFS(app);
+            var a = JSON.stringify(this.fscache[app]["_attachments"]);
             var b = a.split("_fileId\":\"");
             var c = b.map(function (value) {
                 return value.substr(0, 36);
             });
             var d = c.slice(1);
-            yield this.db.collection(this.application + ".files").remove({ '_id': { $nin: d } });
-            yield this.db.collection(this.application + ".chunks").remove({ 'files_id': { $nin: d } });
+            yield this.db.collection(app + ".files").remove({ '_id': { $nin: d } });
+            yield this.db.collection(app + ".chunks").remove({ 'files_id': { $nin: d } });
         });
     }
 }
 exports.default = MongoFS;
+class parsedPath {
+}

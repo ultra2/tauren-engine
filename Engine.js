@@ -12,14 +12,12 @@ const fs = require("fs");
 const express = require("express");
 const bodyParser = require("body-parser");
 const request = require("request");
-const uuid = require("node-uuid");
 const mongodb = require("mongodb");
 const Application_1 = require("./Application");
 const gridfs = require("gridfs-stream");
 const MongoFS_1 = require("./MongoFS");
 const utils_1 = require("./utils");
 const MemoryFileSystem = require("memory-fs");
-const Binding2_1 = require("./Binding2");
 class Engine {
     constructor() {
         this.currdepth = 0;
@@ -27,11 +25,6 @@ class Engine {
         this.info = {};
         this.applications = {};
         this.cache = new MemoryFileSystem();
-        this.cache.mkdirpSync("/virtual");
-        this.cache.writeFileSync("/virtual/main.ts", "alert('hello from virtual!!')");
-        var tsconfig = fs.readFileSync("./tsconfig.json");
-        this.cache.writeFileSync("/virtual/tsconfig.json", tsconfig);
-        this.binding = new Binding2_1.default(this.cache);
         this.templateUrl = "mongodb://guest:guest@ds056549.mlab.com:56549/tauren";
     }
     run() {
@@ -40,6 +33,7 @@ class Engine {
             yield this.initRouter();
             yield this.initApp();
             yield this.initMongo();
+            this.mongo = new MongoFS_1.default(this.db);
             yield this.loadApplications();
             yield this.updateStudio();
         });
@@ -244,12 +238,7 @@ class Engine {
     createApplication(name) {
         return __awaiter(this, void 0, void 0, function* () {
             var app = new Application_1.default(name, this);
-            var fileId = uuid.v1();
-            yield this.db.collection(name).insertOne({
-                _id: "fs",
-                _attachments: {}
-            }, { w: 1 });
-            yield app.fs.createFile(fileId, "index.html", "hello");
+            yield app.create();
             return app;
         });
     }
@@ -275,8 +264,8 @@ class Engine {
                 if (application == "objectlabs-system")
                     continue;
                 var readme = "";
-                var fs = new MongoFS_1.default(application, this.db);
-                var data = yield fs.findOrCreateStub("README.html", false);
+                var fs = new MongoFS_1.default(this.db);
+                var data = yield this.mongo.findOrCreateStub(application, "README.html", false);
                 if (data.stub) {
                     var filedoc = yield sourcedb.collection(application + ".files").findOne({ '_id': data.stub._fileId });
                     var gfs = gridfs(sourcedb, mongodb);
@@ -307,16 +296,6 @@ class Engine {
             yield this.db.collection(destAppName + ".chunks").insertMany(chunks);
             yield this.loadApplication(destAppName);
         });
-    }
-    overrideBinding() {
-        fs["realFunctions"] = {};
-        fs["memoryFunctions"] = {};
-        var methods = Object.getOwnPropertyNames(Binding2_1.default.prototype);
-        for (var i in methods) {
-            var method = methods[i];
-            fs["realFunctions"][method] = fs[method];
-            fs[method] = this.binding[method].bind(this.binding);
-        }
     }
     overrideBinding2() {
         fs["realFunctions"] = {};

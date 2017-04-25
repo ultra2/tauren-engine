@@ -3,7 +3,6 @@
 
 import * as fs from "fs"
 import * as mongodb from "mongodb"
-import * as uuid from "node-uuid"
 import * as mime from "mime"
 import * as stream from "stream"
 import * as gridfs from "gridfs-stream"
@@ -19,17 +18,34 @@ export default class Application {
     private name: string
     private loaded: boolean
     public controllers: any   
+    public fs = {}
 
     constructor(application: string, engine: Engine) {
         this.name = application
         this.engine = engine
+        //this.fs['loadFile'] = function (url){
+        //    return this.engine.mongo.loadFile(this.name + "/" + url)
+        //}.bind(this)
+        //this.fs['uploadFileOrFolder'] = function (url, body){
+        //    return this.engine.mongo.uploadFileOrFolder(this.name + "/" + url, body)
+        //}.bind(this)
     }
+
+    public async create(){
+        await this.engine.db.collection(name).insertOne({
+            _id: "fs",
+            _attachments: {                        
+            }
+        }, {w: 1})
+
+        await this.engine.mongo.uploadFileOrFolder("index.html", "hello")
+    } 
 
     public async init(){
         this.loaded = false
         this.controllers = {} //namespace
         try {
-            var fileInfo = await this.fs.loadFile("controller.js")
+            var fileInfo = await this.engine.mongo.loadFile(this.name + "/controller.js")
             var F = Function('app', fileInfo.buffer)
             F(this)
             this.loaded = true
@@ -65,7 +81,7 @@ export default class Application {
     }
 
     public async installPackage(githubUrl: string, name: string): Promise<Object> {
-        await this.fs.garbageFiles()
+        await this.engine.mongo.garbageFiles(this.name)
 
         var githubUrlSplitted = githubUrl.split("/")
         var zipUrl = ""
@@ -89,9 +105,9 @@ export default class Application {
 
         for (var key in zip.files) {
             var entry = zip.files[key]
-            var path = "packages/" + name + key.substr(key.indexOf("/"))
-            if (entry.dir) path = path.replace(".", "_")
-            var result = await this.fs.findOrCreateStub(path, true)
+            var relpath = "packages/" + name + key.substr(key.indexOf("/"))
+            if (entry.dir) relpath = relpath.replace(".", "_")
+            var result = await this.engine.mongo.findOrCreateStub(this.name, relpath, true)
 
             var tasks = []
             if (result.stubType == "file") {
@@ -101,8 +117,8 @@ export default class Application {
                     //var uint8array = await entry.async("uint8array") //Invalid non-string/buffer chunk
                     //var arraybuffer = await entry.async("arraybuffer") //Invalid non-string/buffer chunk
                     var nodebuffer = await entry.async("nodebuffer")
-                    await this.fs.createFile(result.stub._fileId, path, nodebuffer)
-                    console.log("created: " + path)
+                    await this.engine.mongo.createFile(result.stub._fileId, this.name, relpath, nodebuffer)
+                    console.log("created: " + relpath)
                 }
                 catch (err) {
                     console.log(err)
@@ -111,7 +127,7 @@ export default class Application {
             }
         }
 
-        await this.fs.saveFS
+        await this.engine.mongo.saveFS(this.name)
         return { message: "Package installed successfully!" }
     }
 
@@ -143,9 +159,9 @@ export default class Application {
 
 	//Load source into cache 
         this.engine.cache.mkdirpSync("/virtual/" + this.name);
-	    this.cache.writeFileSync("/virtual/main.ts", "alert('hello from virtual!!')");
+	    this.engine.cache.writeFileSync("/virtual/main.ts", "alert('hello from virtual!!')");
         var tsconfig = fs.readFileSync("./tsconfig.json")
-        this.cache.writeFileSync("/virtual/tsconfig.json", tsconfig);
+        this.engine.cache.writeFileSync("/virtual/tsconfig.json", tsconfig);
         
         var compiler = webpack({
             //context: '/',

@@ -12,19 +12,27 @@ const fs = require("fs");
 const JSZip = require("jszip");
 const webpack = require("webpack");
 const utils_1 = require("./utils");
-const MongoFS_1 = require("./MongoFS");
 class Application {
     constructor(application, engine) {
+        this.fs = {};
         this.name = application;
         this.engine = engine;
-        this.fs = new MongoFS_1.default(this.name, this.engine.db);
+    }
+    create() {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this.engine.db.collection(name).insertOne({
+                _id: "fs",
+                _attachments: {}
+            }, { w: 1 });
+            yield this.engine.mongo.uploadFileOrFolder("index.html", "hello");
+        });
     }
     init() {
         return __awaiter(this, void 0, void 0, function* () {
             this.loaded = false;
             this.controllers = {};
             try {
-                var fileInfo = yield this.fs.loadFile("controller.js");
+                var fileInfo = yield this.engine.mongo.loadFile(this.name + "/controller.js");
                 var F = Function('app', fileInfo.buffer);
                 F(this);
                 this.loaded = true;
@@ -66,7 +74,7 @@ class Application {
     }
     installPackage(githubUrl, name) {
         return __awaiter(this, void 0, void 0, function* () {
-            yield this.fs.garbageFiles();
+            yield this.engine.mongo.garbageFiles(this.name);
             var githubUrlSplitted = githubUrl.split("/");
             var zipUrl = "";
             var owner = githubUrlSplitted[3];
@@ -82,30 +90,34 @@ class Application {
             var zip = yield zipHelper.loadAsync(zipFile);
             for (var key in zip.files) {
                 var entry = zip.files[key];
-                var path = "packages/" + name + key.substr(key.indexOf("/"));
+                var relpath = "packages/" + name + key.substr(key.indexOf("/"));
                 if (entry.dir)
-                    path = path.replace(".", "_");
-                var result = yield this.fs.findOrCreateStub(path, true);
+                    relpath = relpath.replace(".", "_");
+                var result = yield this.engine.mongo.findOrCreateStub(this.name, relpath, true);
                 var tasks = [];
                 if (result.stubType == "file") {
                     try {
                         var nodebuffer = yield entry.async("nodebuffer");
-                        yield this.fs.createFile(result.stub._fileId, path, nodebuffer);
-                        console.log("created: " + path);
+                        yield this.engine.mongo.createFile(result.stub._fileId, this.name, relpath, nodebuffer);
+                        console.log("created: " + relpath);
                     }
                     catch (err) {
                         console.log(err);
                     }
                 }
             }
-            yield this.fs.saveFS;
+            yield this.engine.mongo.saveFS(this.name);
             return { message: "Package installed successfully!" };
         });
     }
     build() {
         return __awaiter(this, void 0, void 0, function* () {
+            this.engine.cache.mkdirpSync("/virtual/" + this.name);
+            this.engine.cache.writeFileSync("/virtual/main.ts", "alert('hello from virtual!!')");
+            var tsconfig = fs.readFileSync("./tsconfig.json");
+            this.engine.cache.writeFileSync("/virtual/tsconfig.json", tsconfig);
             var compiler = webpack({
-                entry: '/virtual/main.ts',
+                entry: '/virtual/' + this.name + '/main.ts',
                 resolve: {
                     extensions: ['.ts']
                 },
@@ -121,7 +133,7 @@ class Application {
                     ]
                 },
                 output: {
-                    path: '/dist',
+                    path: '/mongo/' + this.name + '/dist',
                     filename: 'build.js'
                 }
             });
@@ -129,7 +141,7 @@ class Application {
             compiler["resolvers"].normal.fileSystem = fs;
             compiler["resolvers"].loader.fileSystem = fs;
             compiler["resolvers"].context.fileSystem = fs;
-            compiler.outputFileSystem = this.fs;
+            compiler.outputFileSystem = this.engine.mongo;
             return new Promise(function (resolve, reject) {
                 compiler.run(function (err, stats) {
                     return __awaiter(this, void 0, void 0, function* () {

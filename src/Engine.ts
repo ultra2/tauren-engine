@@ -5,7 +5,6 @@ import * as fs from "fs"
 import * as express from "express"
 import * as bodyParser from "body-parser"
 import * as request from "request"
-import * as uuid from "node-uuid"
 import * as mongodb from "mongodb"
 import * as model from './model'
 import Application from './Application'
@@ -29,7 +28,7 @@ export default class Engine {
         this.info = {}
         this.applications = {}
         this.cache = new MemoryFileSystem()
-        this.mongo = new MongoFS(this.db)
+
         this.templateUrl = "mongodb://guest:guest@ds056549.mlab.com:56549/tauren"
         //this.templateUrl = "mongodb://guest:guest@ds117189.mlab.com:17189/ide"
     }
@@ -41,6 +40,7 @@ export default class Engine {
         await this.initApp()
 
         await this.initMongo()
+        this.mongo = new MongoFS(this.db)
         await this.loadApplications()
         await this.updateStudio()
     }
@@ -252,17 +252,7 @@ export default class Engine {
 
     public async createApplication(name:string) : Promise<Application> {
         var app = new Application(name, this)
-
-        var fileId = uuid.v1()
-        
-        await this.db.collection(name).insertOne({
-            _id: "fs",
-            _attachments: {                        
-            }
-        }, {w: 1})
-
-        await app.fs.createFile(fileId, "index.html", "hello")
-
+        await app.create()
         return app
     }
 
@@ -286,9 +276,9 @@ export default class Engine {
             if (application == "objectlabs-system") continue 
 
             var readme = ""
-            var fs = new MongoFS(application, this.db)
+            var fs = new MongoFS(this.db)
              
-            var data = await fs.findOrCreateStub("README.html", false)
+            var data = await this.mongo.findOrCreateStub(application, "README.html", false)
             if (data.stub) {
                 var filedoc = await sourcedb.collection(application + ".files").findOne({'_id': data.stub._fileId})
                 var gfs = gridfs(sourcedb, mongodb);
@@ -325,20 +315,20 @@ export default class Engine {
         await this.loadApplication(destAppName)
     }
 
-    private overrideBinding(){
-        fs["realFunctions"] = {}
-        fs["memoryFunctions"] = {}
-        var methods = Object.getOwnPropertyNames(Binding.prototype);
-        for (var i in methods) {
+    //private overrideBinding(){
+    //    fs["realFunctions"] = {}
+    //    fs["memoryFunctions"] = {}
+    //    var methods = Object.getOwnPropertyNames(Binding.prototype);
+    //    for (var i in methods) {
             //if (typeof this.binding[key] === 'function') {
-                var method = methods[i]
-                fs["realFunctions"][method] = fs[method]
-                fs[method] = this.binding[method].bind(this.binding);
+    //            var method = methods[i]
+    //            fs["realFunctions"][method] = fs[method]
+    //            fs[method] = this.binding[method].bind(this.binding);
             //} else {
             //    fs[key] = this.binding[key];
             //}
-        }
-    }
+    //    }
+    //}
 
     private overrideBinding2(){
         fs["realFunctions"] = {}

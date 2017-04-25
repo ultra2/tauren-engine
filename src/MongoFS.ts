@@ -20,24 +20,23 @@ MemoryFileSystemError.prototype = new Error();
 
 export default class MongoFS {
 
-  private application: string
   private db: mongodb.Db
-  private fsobj: object
+  private fscache: object
 
-  constructor(application: string, db: mongodb.Db) {
-    this.application = application
+  constructor(db: mongodb.Db) {
     this.db = db
+    this.fscache = {}
   }
 
-  public async isDir(path: string) {
-    var result = await this.findOrCreateStub(path, false)
-    console.log("isDir " + path + " = " + (result.stub && result.stubType == "folder"))
+  public async isDir(app: string, relpath: string) {
+    var result = await this.findOrCreateStub(app, relpath, false)
+    console.log("isDir " + relpath + " = " + (result.stub && result.stubType == "folder"))
     return result.stub && result.stubType == "folder"
   }
 
-  public async isFile(path: string) {
-    var result = await this.findOrCreateStub(path, false)
-    console.log("isFile " + path + " = " + (result.stub && result.stubType == "file"))
+  public async isFile(app: string, relpath: string) {
+    var result = await this.findOrCreateStub(app, relpath, false)
+    console.log("isFile " + relpath + " = " + (result.stub && result.stubType == "file"))
     return result.stub && result.stubType == "file"
   }
 
@@ -120,13 +119,15 @@ export default class MongoFS {
   public async stat(path: string, callback: (err: object, stat: any) => any) {
     console.log("stat " + path)
 
+    var ppath = this.parsePath(path)
+
     var trueFn = function () { return true; }
     var falseFn = function () { return false; }
 
     var err = null
     var stat = null
 
-    if (await this.isDir(path)) {
+    if (await this.isDir(ppath.app, ppath.relpath)) {
       stat = {
         isFile: falseFn,
         isDirectory: trueFn,
@@ -138,7 +139,7 @@ export default class MongoFS {
       }
     }
 
-    if (await this.isFile(path)) {
+    if (await this.isFile(ppath.app, ppath.relpath)) {
       stat = {
         isFile: trueFn,
         isDirectory: falseFn,
@@ -264,13 +265,13 @@ export default class MongoFS {
 
   //Find a fileStub in document based on the given filePath
   //stub, stubType, stubCreated
-  public async findOrCreateStub(path: string, create: boolean): Promise<model.stubInfo> {
+  public async findOrCreateStub(app: string, relpath: string, create: boolean): Promise<model.stubInfo> {
     var result = new model.stubInfo()
-    path = path.replace(/\./g, '*');
-    path = path.replace(/^(\/)/,"");
-    result.stubType = (path.indexOf('*') != -1) ? "file" : "folder"
+    relpath = relpath.replace(/\./g, '*');
+    relpath = relpath.replace(/^(\/)/,"");
+    result.stubType = (relpath.indexOf('*') != -1) ? "file" : "folder"
 
-    var splitted = path.split('/')
+    var splitted = relpath.split('/')
     var fileName = ""
     var dirs = []
 
@@ -284,8 +285,8 @@ export default class MongoFS {
       dirs = splitted.slice(0, splitted.length)
     }
 
-    await this.loadFS()
-    result.stub = this.fsobj["_attachments"]
+    await this.loadFS(app)
+    result.stub = this.fscache[app]["_attachments"]
 
     for (var i = 0; i < dirs.length; i++) {
       var dir = dirs[i]
@@ -315,19 +316,26 @@ export default class MongoFS {
     return result
   }
 
-  public async loadFile(path: string): Promise<model.fileInfo> {
+  private parsePath(path: string): parsedPath {
+    var result = new parsedPath()
+    result.app = path.substring(0, path.indexOf('/'))
+    result.relpath = path.substring(path.indexOf('/'))
+    return result
+  }
 
-    var result = await this.findOrCreateStub(path, false)
+  public async loadFile(path: string): Promise<model.fileInfo> {
+    var ppath = this.parsePath(path)
+    var result = await this.findOrCreateStub(ppath.app, ppath.relpath, false)
     if (!result.stub) {
       throw Error("not found")
     }
 
-    var filedoc = await this.db.collection(this.application + ".files").findOne({ '_id': result.stub._fileId })
+    var filedoc = await this.db.collection(ppath.app + ".files").findOne({ '_id': result.stub._fileId })
 
     var gfs = gridfs(this.db, mongodb);
     var readstream = gfs.createReadStream({
       _id: filedoc._id,
-      root: this.application
+      root: ppath.app
     });
 
     try {
@@ -340,13 +348,15 @@ export default class MongoFS {
   }
 
   public async uploadFileOrFolder(path: string, data: any): Promise<model.stubInfo> {
-    if (path == "controller.js") {
+    var ppath = this.parsePath(path)
+
+    if (ppath.relpath == "controller.js") {
       var F = Function('app', data)
     }
 
-    var result = await this.findOrCreateStub(path, true)
+    var result = await this.findOrCreateStub(ppath.app, ppath.relpath, true)
     if (result.stubNew) {
-      await this.saveFS()
+      await this.saveFS(ppath.app)
     }
 
     if (result.stubType == "folder") return result
@@ -357,51 +367,56 @@ export default class MongoFS {
       //        await this.removeFile(s.fileId) //delete old version
       //    }catch(e){}
       //}
-      await this.createFile(result.stub._fileId, path, data)
+      await this.createFile(result.stub._fileId, ppath.app, ppath.relpath, data)
       return result
     }
   }
 
-  public async loadFS() {
-    if (this.fsobj) return
-    this.fsobj = await this.db.collection(this.application).findOne({ _id: "fs" })
+  public async loadFS(app: string) {
+    if (this.fscache[app]) return
+    this.fscache[app] = await this.db.collection(app).findOne({ _id: "fs" })
   }
 
-  public async saveFS() {
-    await this.db.collection(this.application).updateOne({ _id: "fs" }, this.fsobj, { w: 1 })
+  public async saveFS(app: string) {
+    await this.db.collection(app).updateOne({ _id: "fs" }, this.fscache[app], { w: 1 })
   }
 
-  public async createFile(id: string, path: string, data: any): Promise<Object> {
+  public async createFile(id: string, app: string, relpath: string, data: any): Promise<Object> {
     var gfs = gridfs(this.db, mongodb);
     var writestream = gfs.createWriteStream({
       _id: id,
       filename: id,
-      root: this.application,
-      content_type: mime.lookup(path)
+      root: app,
+      content_type: mime.lookup(relpath)
     });
     return await Utils.toStream(data, writestream)
   }
 
-  public async deleteFile(id: string) {
+  public async deleteFile(id: string, app: string) {
     var gfs = gridfs(this.db, mongodb);
     gfs.remove({
       _id: id,
-      root: this.application
+      root: app
     }, function (err) {
       console.log(err)
     });
   }
 
-  public async garbageFiles() {
-    await this.loadFS()
-    var a = JSON.stringify(this.fsobj["_attachments"])
+  public async garbageFiles(app: string) {
+    await this.loadFS(app)
+    var a = JSON.stringify(this.fscache[app]["_attachments"])
     var b = a.split("_fileId\":\"")
     var c = b.map(function (value) {
       return value.substr(0, 36)
     })
     var d = c.slice(1)
 
-    await this.db.collection(this.application + ".files").remove({ '_id': { $nin: d } })
-    await this.db.collection(this.application + ".chunks").remove({ 'files_id': { $nin: d } })
+    await this.db.collection(app + ".files").remove({ '_id': { $nin: d } })
+    await this.db.collection(app + ".chunks").remove({ 'files_id': { $nin: d } })
   }
+}
+
+class parsedPath {
+    app: string
+    relpath: string
 }
