@@ -360,6 +360,10 @@ export default class Engine {
                     console.log("from cache")
                     return this.cache[methodName].apply(this.cache, arguments)
                 }
+                if (arguments[0].substring(0,8) == "/mongo") {
+                    console.log("from mongo")
+                    return this.mongo[methodName].apply(this.mongo, arguments)
+                }
             }
 
             console.log("from fs")

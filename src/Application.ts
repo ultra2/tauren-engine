@@ -159,9 +159,9 @@ export default class Application {
 
 	//Load source into cache 
         this.engine.cache.mkdirpSync("/virtual/" + this.name);
-	    this.engine.cache.writeFileSync("/virtual/main.ts", "alert('hello from virtual!!')");
-        var tsconfig = fs.readFileSync("./tsconfig.json")
-        this.engine.cache.writeFileSync("/virtual/tsconfig.json", tsconfig);
+	    this.engine.cache.writeFileSync("/virtual/main.ts", "alert('hello2 from virtual!!')");
+        var tsconfig = await this.engine.mongo.loadFile(this.name + "/" + "tsconfig.json")
+        this.engine.cache.writeFileSync("/virtual/tsconfig.json", tsconfig.buffer);
         
         var compiler = webpack({
             //context: '/',
@@ -221,7 +221,8 @@ export default class Application {
         compiler["resolvers"].loader.fileSystem = fs //node_modules -t keres a mongofs-ben
         compiler["resolvers"].context.fileSystem = fs
  
-        compiler.outputFileSystem = this.engine.mongo
+        //compiler.outputFileSystem = this.engine.mongo
+        compiler.outputFileSystem = fs
 
         return new Promise<Object>(function (resolve, reject) {
             compiler.run(async function (err, stats) {

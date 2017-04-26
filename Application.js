@@ -113,9 +113,9 @@ class Application {
     build() {
         return __awaiter(this, void 0, void 0, function* () {
             this.engine.cache.mkdirpSync("/virtual/" + this.name);
-            this.engine.cache.writeFileSync("/virtual/main.ts", "alert('hello from virtual!!')");
-            var tsconfig = fs.readFileSync("./tsconfig.json");
-            this.engine.cache.writeFileSync("/virtual/tsconfig.json", tsconfig);
+            this.engine.cache.writeFileSync("/virtual/main.ts", "alert('hello2 from virtual!!')");
+            var tsconfig = yield this.engine.mongo.loadFile(this.name + "/" + "tsconfig.json");
+            this.engine.cache.writeFileSync("/virtual/tsconfig.json", tsconfig.buffer);
             var compiler = webpack({
                 entry: '/virtual/' + this.name + '/main.ts',
                 resolve: {
@@ -141,7 +141,7 @@ class Application {
             compiler["resolvers"].normal.fileSystem = fs;
             compiler["resolvers"].loader.fileSystem = fs;
             compiler["resolvers"].context.fileSystem = fs;
-            compiler.outputFileSystem = this.engine.mongo;
+            compiler.outputFileSystem = fs;
             return new Promise(function (resolve, reject) {
                 compiler.run(function (err, stats) {
                     return __awaiter(this, void 0, void 0, function* () {
