@@ -355,7 +355,7 @@ export default class Engine {
         return function(){
             console.log(methodName, arguments[0])
 
-            if (["access", "accessSync", "chmod", "chmodSync", "chown", "chownSync", "createReadStream", "createWriteStream", "exists", "existsSync", "lchown", "lchownSync", "lstat", "lstatSync", "open", "openSync", "readdir", "readdirSync", "readFile", "readFileSync", "readlink", "readlinkSync", "rmdir", "rmdirSync", "stat", "statSync"].indexOf(methodName) != -1){
+            if (["access", "accessSync", "chmod", "chmodSync", "chown", "chownSync", "createReadStream", "createWriteStream", "exists", "existsSync", "lchown", "lchownSync", "lstat", "lstatSync", "mkdir", "mkdirSync", "mkdirp", "open", "openSync", "readdir", "readdirSync", "readFile", "readFileSync", "readlink", "readlinkSync", "rmdir", "rmdirSync", "stat", "statSync"].indexOf(methodName) != -1){
                 if (arguments[0].substring(0,8) == "/virtual") {
                     console.log("from cache")
                     return this.cache[methodName].apply(this.cache, arguments)
