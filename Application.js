@@ -112,10 +112,13 @@ class Application {
     }
     build() {
         return __awaiter(this, void 0, void 0, function* () {
-            this.engine.cache.mkdirpSync("/virtual/" + this.name);
-            this.engine.cache.writeFileSync("/virtual/main.ts", "alert('hello2 from virtual!!')");
+            this.engine.cache.mkdirpSync("/webpack/" + this.name);
             var tsconfig = yield this.engine.mongo.loadFile(this.name + "/" + "tsconfig.json");
-            this.engine.cache.writeFileSync("/virtual/tsconfig.json", tsconfig.buffer);
+            this.engine.cache.writeFileSync("/webpack/tsconfig.json", tsconfig.buffer);
+            var scriptts = yield this.engine.mongo.loadFile(this.name + "/" + "script.ts");
+            this.engine.cache.writeFileSync("/webpack/script.ts", scriptts.buffer);
+            var maints = yield this.engine.mongo.loadFile(this.name + "/" + "main.ts");
+            this.engine.cache.writeFileSync("/webpack/main.ts", maints.buffer);
             var compiler = webpack({
                 entry: '/virtual/' + this.name + '/main.ts',
                 resolve: {

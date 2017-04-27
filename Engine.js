@@ -20,8 +20,6 @@ const utils_1 = require("./utils");
 const MemoryFileSystem = require("memory-fs");
 class Engine {
     constructor() {
-        this.currdepth = 0;
-        this.status = 1;
         this.info = {};
         this.applications = {};
         this.cache = new MemoryFileSystem();
@@ -29,7 +27,7 @@ class Engine {
     }
     run() {
         return __awaiter(this, void 0, void 0, function* () {
-            this.overrideBinding2();
+            this.overrideBinding3();
             yield this.initRouter();
             yield this.initApp();
             yield this.initMongo();
@@ -299,7 +297,6 @@ class Engine {
     }
     overrideBinding2() {
         fs["realFunctions"] = {};
-        fs["memoryFunctions"] = {};
         for (var methodName in fs) {
             if (typeof fs[methodName] === 'function' && methodName[0] != methodName[0].toUpperCase()) {
                 fs["realFunctions"][methodName] = fs[methodName];
@@ -307,17 +304,10 @@ class Engine {
             }
         }
     }
-    methodFactory3(methodName) {
-        return function () {
-            console.log(methodName, arguments[0]);
-            var result = fs["realFunctions"][methodName].apply(fs, arguments);
-            return result;
-        }.bind(this);
-    }
     methodFactory2(methodName) {
         return function () {
             console.log(methodName, arguments[0]);
-            if (["access", "accessSync", "chmod", "chmodSync", "chown", "chownSync", "createReadStream", "createWriteStream", "exists", "existsSync", "lchown", "lchownSync", "lstat", "lstatSync", "open", "openSync", "readdir", "readdirSync", "readFile", "readFileSync", "readlink", "readlinkSync", "rmdir", "rmdirSync", "stat", "statSync"].indexOf(methodName) != -1) {
+            if (["access", "accessSync", "chmod", "chmodSync", "chown", "chownSync", "createReadStream", "createWriteStream", "exists", "existsSync", "lchown", "lchownSync", "lstat", "lstatSync", "mkdir", "mkdirSync", "mkdirp", "open", "openSync", "readdir", "readdirSync", "readFile", "readFileSync", "readlink", "readlinkSync", "rmdir", "rmdirSync", "stat", "statSync"].indexOf(methodName) != -1) {
                 if (arguments[0].substring(0, 8) == "/virtual") {
                     console.log("from cache");
                     return this.cache[methodName].apply(this.cache, arguments);
@@ -331,35 +321,39 @@ class Engine {
             return fs["realFunctions"][methodName].apply(fs, arguments);
         }.bind(this);
     }
-    methodFactory(methodName) {
+    overrideBinding3() {
+        var methods = ["access", "accessSync", "chmod", "chmodSync", "chown", "chownSync", "createReadStream", "createWriteStream", "exists", "existsSync", "lchown", "lchownSync", "lstat", "lstatSync", "mkdir", "mkdirSync", "mkdirp", "open", "openSync", "readdir", "readdirSync", "readFile", "readFileSync", "readlink", "readlinkSync", "rmdir", "rmdirSync", "stat", "statSync", "truncate", "truncateSync", "unlink", "unlinkSync", "writeFile", "writeFileSync"];
+        fs["realFunctions"] = {};
+        for (var i in methods) {
+            var methodName = methods[i];
+            fs["realFunctions"][methodName] = fs[methodName];
+            fs[methodName] = this.methodFactory3(methodName);
+        }
+        fs["join"] = utils_1.default.join;
+        fs["normalize"] = utils_1.default.normalize;
+    }
+    methodFactory3(methodName) {
         return function () {
-            console.log(methodName, arguments, this.status, this.currdepth);
-            if (this.currdepth == 0) {
-                this.status = 1;
-                if (["access", "accessSync", "chmod", "chmodSync", "chown", "chownSync", "createReadStream", "createWriteStream", "exists", "existsSync", "lchown", "lchownSync", "lstat", "lstatSync", "open", "openSync", "readdir", "readdirSync", "readFile", "readFileSync", "leadlink", "leadlinkSync", "rmdir", "rmdirSync", "stat", "statSync"].indexOf(methodName) != -1) {
-                    if (arguments[0].substring(0, 8) == "/virtual") {
-                        this.status = 2;
-                    }
-                }
+            console.log(methodName, arguments[0]);
+            if (arguments[0].substring(0, 8) == "/virtual") {
+                console.log("from cache");
+                arguments[0] = arguments[0].substring(8);
+                return this.cache[methodName].apply(this.cache, arguments);
             }
-            this.currdepth += 1;
-            var result = null;
-            try {
-                if (this.status == 1) {
-                    result = fs["realFunctions"][methodName].apply(fs, arguments);
-                }
-                else {
-                    result = this.cache[methodName].apply(this.cache, arguments);
-                }
-                this.currdepth -= 1;
-                return result;
+            if (arguments[0].substring(0, 6) == "/mongo") {
+                console.log("from mongo");
+                arguments[0] = arguments[0].substring(7);
+                return this.mongo[methodName].apply(this.mongo, arguments);
             }
-            catch (err) {
-                debugger;
-            }
-            finally {
-                debugger;
-            }
+            console.log("from fs");
+            return fs["realFunctions"][methodName].apply(fs, arguments);
+        }.bind(this);
+    }
+    methodFactory4(methodName) {
+        return function () {
+            console.log(methodName, arguments[0]);
+            var result = fs["realFunctions"][methodName].apply(fs, arguments);
+            return result;
         }.bind(this);
     }
 }

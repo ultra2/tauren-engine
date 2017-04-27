@@ -34,7 +34,7 @@ export default class Engine {
     }
 
     public async run() {
-        this.overrideBinding2()
+        this.overrideBinding3()
         
         await this.initRouter()
         await this.initApp()
@@ -332,7 +332,6 @@ export default class Engine {
 
     private overrideBinding2(){
         fs["realFunctions"] = {}
-        fs["memoryFunctions"] = {}
         for (var methodName in fs) {
             if (typeof fs[methodName] === 'function' && methodName[0] != methodName[0].toUpperCase()) {
                 fs["realFunctions"][methodName] = fs[methodName]
@@ -341,14 +340,6 @@ export default class Engine {
             //    fs[key] = this.binding[key];
             }
         }
-    }
-
-    private methodFactory3(methodName): Function{
-        return function(){
-            console.log(methodName, arguments[0])
-            var result = fs["realFunctions"][methodName].apply(fs, arguments)
-            return result
-        }.bind(this)
     }
 
     private methodFactory2(methodName): Function{
@@ -372,45 +363,86 @@ export default class Engine {
         }.bind(this)
     }
 
-    private currdepth: number = 0 //current position in call stack, change fs only if 0
-    private status: number = 1 //1: fs, 2: cache, 3:mongo
-    private currFS: any
+    private overrideBinding3(){
+        var methods = ["access", "accessSync", "chmod", "chmodSync", "chown", "chownSync", "createReadStream", "createWriteStream", "exists", "existsSync", "lchown", "lchownSync", "lstat", "lstatSync", "mkdir", "mkdirSync", "mkdirp", "open", "openSync", "readdir", "readdirSync", "readFile", "readFileSync", "readlink", "readlinkSync", "rmdir", "rmdirSync", "stat", "statSync", "truncate", "truncateSync", "unlink", "unlinkSync", "writeFile", "writeFileSync"]
+        fs["realFunctions"] = {}
+        for (var i in methods) {
+            var methodName = methods[i]
+            ///if (typeof fs[methodName] === 'function' && methodName[0] != methodName[0].toUpperCase()) {
+                fs["realFunctions"][methodName] = fs[methodName]
+                fs[methodName] = this.methodFactory3(methodName)
+            //} else {
+            //    fs[key] = this.binding[key];
+            //}
+        }
+        //make fs a webpack output filesystem 
+        fs["join"] = Utils.join
+        fs["normalize"] = Utils.normalize
+    }
 
-    private methodFactory(methodName): Function{
+    private methodFactory3(methodName): Function{
         return function(){
-            console.log(methodName, arguments, this.status, this.currdepth)
+            console.log(methodName, arguments[0])
 
-            if (this.currdepth == 0){
-                this.status = 1
-                if (["access", "accessSync", "chmod", "chmodSync", "chown", "chownSync", "createReadStream", "createWriteStream", "exists", "existsSync", "lchown", "lchownSync", "lstat", "lstatSync", "open", "openSync", "readdir", "readdirSync", "readFile", "readFileSync", "leadlink", "leadlinkSync", "rmdir", "rmdirSync", "stat", "statSync"].indexOf(methodName) != -1){
-                    if (arguments[0].substring(0,8) == "/virtual") {
-                        this.status = 2
-                    }
-                }
+            if (arguments[0].substring(0,8) == "/virtual") {
+                console.log("from cache")
+                arguments[0] = arguments[0].substring(8)
+                return this.cache[methodName].apply(this.cache, arguments)
+            }
+            if (arguments[0].substring(0,6) == "/mongo") {
+                console.log("from mongo")
+                arguments[0] = arguments[0].substring(7)
+                return this.mongo[methodName].apply(this.mongo, arguments)
             }
 
-            this.currdepth += 1
+            console.log("from fs")
+            return fs["realFunctions"][methodName].apply(fs, arguments)
 
-            var result = null
-
-            try {
-                if (this.status == 1){
-                    result = fs["realFunctions"][methodName].apply(fs, arguments)
-                }
-                else {
-                    result = this.cache[methodName].apply(this.cache, arguments)
-                }
-                this.currdepth -= 1
-
-                return result
-            }
-            catch (err){
-                debugger
-            }
-            finally {
-                debugger
-            }
-            
         }.bind(this)
     }
+
+    private methodFactory4(methodName): Function{
+        return function(){
+            console.log(methodName, arguments[0])
+            var result = fs["realFunctions"][methodName].apply(fs, arguments)
+            return result
+        }.bind(this)
+    }
+  
+    //private currdepth: number = 0 //current position in call stack, change fs only if 0
+    //private status: number = 1 //1: fs, 2: cache, 3:mongo
+    //private currFS: any
+
+    //private methodFactory5(methodName): Function{
+    //    return function(){
+    //        console.log(methodName, arguments, this.status, this.currdepth)
+
+    //        if (this.currdepth == 0){
+    //            this.status = 1
+    //            if (["access", "accessSync", "chmod", "chmodSync", "chown", "chownSync", "createReadStream", "createWriteStream", "exists", "existsSync", "lchown", "lchownSync", "lstat", "lstatSync", "open", "openSync", "readdir", "readdirSync", "readFile", "readFileSync", "leadlink", "leadlinkSync", "rmdir", "rmdirSync", "stat", "statSync"].indexOf(methodName) != -1){
+    //                if (arguments[0].substring(0,8) == "/virtual") {
+    //                    this.status = 2
+    //                }
+    //            }
+    //        }
+    //        this.currdepth += 1
+    //        var result = null
+    //        try {
+    //            if (this.status == 1){
+    //                result = fs["realFunctions"][methodName].apply(fs, arguments)
+    //            }
+    //            else {
+    //                result = this.cache[methodName].apply(this.cache, arguments)
+    //            }
+    //            this.currdepth -= 1
+    //            return result
+    //        }
+    //        catch (err){
+    //            debugger
+    //        }
+    //        finally {
+    //            debugger
+    //        }      
+    //    }.bind(this)
+    //}
 }

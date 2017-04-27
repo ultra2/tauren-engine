@@ -158,10 +158,16 @@ export default class Application {
         //var index = fs.readFileSync('/virtual/index2.html')
 
 	//Load source into cache 
-        this.engine.cache.mkdirpSync("/virtual/" + this.name);
-	    this.engine.cache.writeFileSync("/virtual/main.ts", "alert('hello2 from virtual!!')");
+        this.engine.cache.mkdirpSync("/webpack/" + this.name);
+
         var tsconfig = await this.engine.mongo.loadFile(this.name + "/" + "tsconfig.json")
-        this.engine.cache.writeFileSync("/virtual/tsconfig.json", tsconfig.buffer);
+        this.engine.cache.writeFileSync("/webpack/tsconfig.json", tsconfig.buffer);
+
+        var scriptts = await this.engine.mongo.loadFile(this.name + "/" + "script.ts")
+	    this.engine.cache.writeFileSync("/webpack/script.ts", scriptts.buffer);
+
+        var maints = await this.engine.mongo.loadFile(this.name + "/" + "main.ts")
+	    this.engine.cache.writeFileSync("/webpack/main.ts", maints.buffer);
         
         var compiler = webpack({
             //context: '/',
