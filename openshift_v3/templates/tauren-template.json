@@ -27,7 +27,7 @@
             "name": "latest",
             "from": {
               "kind": "DockerImage",
-              "name": "ultra2/tauren:1.0.10"
+              "name": "ultra2/tauren:1.0.11"
             }
           }
         ]
