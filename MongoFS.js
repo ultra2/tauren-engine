@@ -209,6 +209,8 @@ class MongoFS {
     }
     parsePath(path) {
         var result = new parsedPath();
+        if (path.substr(0, 1) == "/")
+            path = path.substr(1);
         result.app = path.substring(0, path.indexOf('/'));
         result.relpath = path.substring(path.indexOf('/'));
         return result;

@@ -382,7 +382,8 @@ export default class Engine {
 
     private methodFactory3(methodName): Function{
         return function(){
-            console.log(methodName, arguments[0])
+            var a = arguments[0].substring(0,6)
+            if (a != "/Users") console.log(methodName, arguments[0])
 
             if (arguments[0].substring(0,8) == "/virtual") {
                 console.log("from cache")
@@ -395,7 +396,7 @@ export default class Engine {
                 return this.mongo[methodName].apply(this.mongo, arguments)
             }
 
-            console.log("from fs")
+            if (a != "/Users") console.log("from fs")
             return fs["realFunctions"][methodName].apply(fs, arguments)
 
         }.bind(this)

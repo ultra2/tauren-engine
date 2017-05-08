@@ -110,15 +110,29 @@ class Application {
             return { message: "Package installed successfully!" };
         });
     }
+    cache() {
+        return __awaiter(this, void 0, void 0, function* () {
+            var fs = yield this.loadDocument("fs");
+            yield this.cacheStub(fs._attachments, "/" + this.name);
+        });
+    }
+    cacheStub(fileStub, path) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (path.indexOf('.') == -1) {
+                this.engine.cache.mkdirpSync(path);
+                for (var key in fileStub) {
+                    yield this.cacheStub(fileStub[key], path + "/" + key);
+                }
+            }
+            else {
+                var fileinfo = yield this.engine.mongo.loadFile(path);
+                this.engine.cache.writeFileSync(path, fileinfo.buffer);
+            }
+        });
+    }
     build() {
         return __awaiter(this, void 0, void 0, function* () {
-            this.engine.cache.mkdirpSync("/webpack/" + this.name);
-            var tsconfig = yield this.engine.mongo.loadFile(this.name + "/" + "tsconfig.json");
-            this.engine.cache.writeFileSync("/webpack/tsconfig.json", tsconfig.buffer);
-            var scriptts = yield this.engine.mongo.loadFile(this.name + "/" + "script.ts");
-            this.engine.cache.writeFileSync("/webpack/script.ts", scriptts.buffer);
-            var maints = yield this.engine.mongo.loadFile(this.name + "/" + "main.ts");
-            this.engine.cache.writeFileSync("/webpack/main.ts", maints.buffer);
+            yield this.cache();
             var compiler = webpack({
                 entry: '/virtual/' + this.name + '/main.ts',
                 resolve: {

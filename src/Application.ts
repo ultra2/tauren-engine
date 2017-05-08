@@ -131,6 +131,37 @@ export default class Application {
         return { message: "Package installed successfully!" }
     }
 
+    public async cache() {
+        
+        var fs = await this.loadDocument("fs")
+        await this.cacheStub(fs._attachments, "/" + this.name)
+        
+        //this.engine.cache.mkdirpSync("/" + this.name);
+
+        //var tsconfig = await this.engine.mongo.loadFile(this.name + "/" + "tsconfig.json")
+        //this.engine.cache.writeFileSync("/webpack/tsconfig.json", tsconfig.buffer);
+
+        //var scriptts = await this.engine.mongo.loadFile(this.name + "/" + "script.ts")
+	    //this.engine.cache.writeFileSync("/webpack/script.ts", scriptts.buffer);
+
+        //var maints = await this.engine.mongo.loadFile(this.name + "/" + "main.ts")
+	    //this.engine.cache.writeFileSync("/webpack/main.ts", maints.buffer);
+    }
+
+    public async cacheStub(fileStub: any, path: string) {
+        
+        if (path.indexOf('.') == -1){  //folder?
+            this.engine.cache.mkdirpSync(path);
+            for (var key in fileStub) {
+                await this.cacheStub(fileStub[key], path + "/" + key)
+            }
+        }
+        else{
+            var fileinfo = await this.engine.mongo.loadFile(path)
+	        this.engine.cache.writeFileSync(path, fileinfo.buffer);
+        }
+    }
+
     public async build() : Promise<Object> {
         //var memfs = new MemoryFileSystem()
 
@@ -158,16 +189,8 @@ export default class Application {
         //var index = fs.readFileSync('/virtual/index2.html')
 
 	//Load source into cache 
-        this.engine.cache.mkdirpSync("/webpack/" + this.name);
 
-        var tsconfig = await this.engine.mongo.loadFile(this.name + "/" + "tsconfig.json")
-        this.engine.cache.writeFileSync("/webpack/tsconfig.json", tsconfig.buffer);
-
-        var scriptts = await this.engine.mongo.loadFile(this.name + "/" + "script.ts")
-	    this.engine.cache.writeFileSync("/webpack/script.ts", scriptts.buffer);
-
-        var maints = await this.engine.mongo.loadFile(this.name + "/" + "main.ts")
-	    this.engine.cache.writeFileSync("/webpack/main.ts", maints.buffer);
+        await this.cache()
         
         var compiler = webpack({
             //context: '/',
