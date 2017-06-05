@@ -1,6 +1,7 @@
 /// <reference path="_all.d.ts" />
 "use strict";
 
+import http = require('http');
 import * as fs from "fs"
 import * as express from "express"
 import * as bodyParser from "body-parser"
@@ -12,11 +13,14 @@ import * as gridfs from "gridfs-stream"
 import MongoFS from './MongoFS'
 import Utils from './utils'
 import MemoryFileSystem = require('memory-fs') //You need to import export = style libraries with import require. This is because of the ES6 spec.
+import socketIo = require('socket.io');
 
 export default class Engine {
 
+    public server: http.Server
+    public io: SocketIO.Server
     public info: Object
-    public db: mongodb.Db;
+    public db: mongodb.Db
     public applications: Object
     public router: express.Router
     public app: express.Application
@@ -25,6 +29,7 @@ export default class Engine {
     public templateUrl: string
 
     constructor() {
+       
         this.info = {}
         this.applications = {}
         this.cache = new MemoryFileSystem()
@@ -39,8 +44,11 @@ export default class Engine {
         await this.initRouter()
         await this.initApp()
 
+      
+
         await this.initMongo()
         this.mongo = new MongoFS(this.db)
+
         await this.loadApplications()
         await this.updateStudio()
     }
@@ -48,22 +56,35 @@ export default class Engine {
     private async initApp() {
         this.app = express()
 
+        this.server = http.createServer(this.app)
+        this.io = socketIo(this.server)
+
+        this.io.on('connection', (socket) => {
+            console.log('socket connection')
+            socket.on('disconnect', function(){
+                console.log('socket disconnect');
+            });
+            socket.on('chooseApplication', function(msg){
+                socket.emit('chooseApplication response', msg + 'from server');
+            });
+        });
+
         this.app.use(bodyParser.json({ type: 'application/json', limit: '5mb' }))  // parse various different custom JSON types as JSON    
         this.app.use(bodyParser.raw({ type: 'application/vnd.custom-type' })) // parse some custom thing into a Buffer      
         this.app.use(bodyParser.text({ type: 'text/*', limit: '5mb' })) // body as string
         //this.app.use(bodyParser.urlencoded({limit: '5mb'})); // parse body if mime "application/x-www-form-urlencoded"
         this.app.use(this.router)
         // catch 404 and forward to error handler
-        this.app.use(function (err: any, req: express.Request, res: express.Response, next: express.NextFunction) {
-            var error = new Error("Not Found");
-            err.status = 404;
-            next(err);
-        });
+        //this.app.use(function (err: any, req: express.Request, res: express.Response, next: express.NextFunction) {
+        //    var error = new Error("Not Found");
+        //    err.status = 404;
+        //    next(err);
+        //});
 
         var port = process.env.PORT || process.env.OPENSHIFT_NODEJS_PORT || 8080
         var ip   = process.env.IP   || process.env.OPENSHIFT_NODEJS_IP || '0.0.0.0'
 
-        this.app.listen(port, ip, function() {
+        this.server.listen(port, ip, function() {
             console.log('Express started on %s:%d ...', ip, port);
         });
     }

@@ -8,6 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const http = require("http");
 const fs = require("fs");
 const express = require("express");
 const bodyParser = require("body-parser");
@@ -18,6 +19,7 @@ const gridfs = require("gridfs-stream");
 const MongoFS_1 = require("./MongoFS");
 const utils_1 = require("./utils");
 const MemoryFileSystem = require("memory-fs");
+const socketIo = require("socket.io");
 class Engine {
     constructor() {
         this.info = {};
@@ -39,18 +41,24 @@ class Engine {
     initApp() {
         return __awaiter(this, void 0, void 0, function* () {
             this.app = express();
+            this.server = http.createServer(this.app);
+            this.io = socketIo(this.server);
+            this.io.on('connection', (socket) => {
+                console.log('socket connection');
+                socket.on('disconnect', function () {
+                    console.log('socket disconnect');
+                });
+                socket.on('chooseApplication', function (msg) {
+                    socket.emit('chooseApplication response', msg + 'from server');
+                });
+            });
             this.app.use(bodyParser.json({ type: 'application/json', limit: '5mb' }));
             this.app.use(bodyParser.raw({ type: 'application/vnd.custom-type' }));
             this.app.use(bodyParser.text({ type: 'text/*', limit: '5mb' }));
             this.app.use(this.router);
-            this.app.use(function (err, req, res, next) {
-                var error = new Error("Not Found");
-                err.status = 404;
-                next(err);
-            });
             var port = process.env.PORT || process.env.OPENSHIFT_NODEJS_PORT || 8080;
             var ip = process.env.IP || process.env.OPENSHIFT_NODEJS_IP || '0.0.0.0';
-            this.app.listen(port, ip, function () {
+            this.server.listen(port, ip, function () {
                 console.log('Express started on %s:%d ...', ip, port);
             });
         });
