@@ -11,6 +11,7 @@ import * as webpack from 'webpack'
 import Utils from './utils'
 import * as model from './model'
 import Engine from './Engine'
+import * as ts from "typescript";
 
 export default class Application {
 
@@ -160,6 +161,52 @@ export default class Application {
             var fileinfo = await this.engine.mongo.loadFile(path)
 	        this.engine.cache.writeFileSync(path, fileinfo.buffer);
         }
+    }
+
+    public getCompletionsAtPosition(msg) {
+
+        // Create the language service host to allow the LS to communicate with the host
+        const serviceHost: ts.LanguageServiceHost = {
+            getScriptFileNames: function() { 
+                return ['/virtual/' + this.name + "/main.ts"] 
+            }.bind(this),
+            getScriptVersion: function(fileName) {
+                return "1.0.0"
+            }.bind(this),
+            getScriptSnapshot: function(fileName) {
+                console.log("getScriptSnapshot", fileName)
+                
+                if (!fs.existsSync(fileName)) {
+                    return undefined;
+                }
+                return ts.ScriptSnapshot.fromString(fs.readFileSync(fileName).toString());
+                //if (!this.engine.cache.existsSync(fileName)) {
+                //    return undefined;
+                //}
+                //return ts.ScriptSnapshot.fromString(this.engine.cache.readFileSync(fileName).toString());
+            }.bind(this),
+            getCurrentDirectory: function(){ 
+                return '/virtual/' + this.name
+            }.bind(this),
+            getCompilationSettings: function(){
+                return { 
+                    noEmitOnError: true, 
+                    noImplicitAny: true,
+                    target: ts.ScriptTarget.ES5, 
+                    module: ts.ModuleKind.CommonJS
+                }
+            }.bind(this),
+            getDefaultLibFileName: function(options){
+                return ts.getDefaultLibFilePath(options)
+            }.bind(this),
+        }
+
+        // Create the language service files
+        const service = ts.createLanguageService(serviceHost, ts.createDocumentRegistry())
+
+        const completions: ts.CompletionInfo = service.getCompletionsAtPosition('/virtual/' + this.name + msg.filePath, msg.position);
+
+        return completions
     }
 
     public async build() : Promise<Object> {

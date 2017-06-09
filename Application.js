@@ -12,6 +12,7 @@ const fs = require("fs");
 const JSZip = require("jszip");
 const webpack = require("webpack");
 const utils_1 = require("./utils");
+const ts = require("typescript");
 class Application {
     constructor(application, engine) {
         this.fs = {};
@@ -129,6 +130,40 @@ class Application {
                 this.engine.cache.writeFileSync(path, fileinfo.buffer);
             }
         });
+    }
+    getCompletionsAtPosition(msg) {
+        const serviceHost = {
+            getScriptFileNames: function () {
+                return ['/virtual/' + this.name + "/main.ts"];
+            }.bind(this),
+            getScriptVersion: function (fileName) {
+                return "1.0.0";
+            }.bind(this),
+            getScriptSnapshot: function (fileName) {
+                console.log("getScriptSnapshot", fileName);
+                if (!fs.existsSync(fileName)) {
+                    return undefined;
+                }
+                return ts.ScriptSnapshot.fromString(fs.readFileSync(fileName).toString());
+            }.bind(this),
+            getCurrentDirectory: function () {
+                return '/virtual/' + this.name;
+            }.bind(this),
+            getCompilationSettings: function () {
+                return {
+                    noEmitOnError: true,
+                    noImplicitAny: true,
+                    target: ts.ScriptTarget.ES5,
+                    module: ts.ModuleKind.CommonJS
+                };
+            }.bind(this),
+            getDefaultLibFileName: function (options) {
+                return ts.getDefaultLibFilePath(options);
+            }.bind(this),
+        };
+        const service = ts.createLanguageService(serviceHost, ts.createDocumentRegistry());
+        const completions = service.getCompletionsAtPosition('/virtual/' + this.name + msg.filePath, msg.position);
+        return completions;
     }
     build() {
         return __awaiter(this, void 0, void 0, function* () {

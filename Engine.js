@@ -43,15 +43,24 @@ class Engine {
             this.app = express();
             this.server = http.createServer(this.app);
             this.io = socketIo(this.server);
-            this.io.on('connection', (socket) => {
+            this.io.on('connection', function (socket) {
                 console.log('socket connection');
                 socket.on('disconnect', function () {
                     console.log('socket disconnect');
-                });
+                }.bind(this));
                 socket.on('chooseApplication', function (msg) {
-                    socket.emit('chooseApplication response', msg + 'from server');
-                });
-            });
+                    return __awaiter(this, void 0, void 0, function* () {
+                        var app = this.applications[msg];
+                        yield app.cache();
+                        socket.emit('chooseApplication', msg);
+                    });
+                }.bind(this));
+                socket.on('getCompletionsAtPosition', function (msg) {
+                    var app = this.applications["webpack"];
+                    msg = app.getCompletionsAtPosition(msg);
+                    socket.emit('getCompletionsAtPosition', msg);
+                }.bind(this));
+            }.bind(this));
             this.app.use(bodyParser.json({ type: 'application/json', limit: '5mb' }));
             this.app.use(bodyParser.raw({ type: 'application/vnd.custom-type' }));
             this.app.use(bodyParser.text({ type: 'text/*', limit: '5mb' }));

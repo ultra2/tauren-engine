@@ -15,6 +15,7 @@ import Utils from './utils'
 import MemoryFileSystem = require('memory-fs') //You need to import export = style libraries with import require. This is because of the ES6 spec.
 import socketIo = require('socket.io');
 
+
 export default class Engine {
 
     public server: http.Server
@@ -44,8 +45,6 @@ export default class Engine {
         await this.initRouter()
         await this.initApp()
 
-      
-
         await this.initMongo()
         this.mongo = new MongoFS(this.db)
 
@@ -56,18 +55,26 @@ export default class Engine {
     private async initApp() {
         this.app = express()
 
+//TEST-------------------------------------------------------------
         this.server = http.createServer(this.app)
         this.io = socketIo(this.server)
 
-        this.io.on('connection', (socket) => {
+        this.io.on('connection', function(socket) {
             console.log('socket connection')
             socket.on('disconnect', function(){
                 console.log('socket disconnect');
-            });
-            socket.on('chooseApplication', function(msg){
-                socket.emit('chooseApplication response', msg + 'from server');
-            });
-        });
+            }.bind(this));
+            socket.on('chooseApplication', async function(msg){
+                var app = this.applications[msg]
+                await app.cache()
+                socket.emit('chooseApplication', msg);
+            }.bind(this));
+            socket.on('getCompletionsAtPosition', function(msg){
+                var app = this.applications["webpack"]
+                msg = app.getCompletionsAtPosition(msg)
+                socket.emit('getCompletionsAtPosition', msg);
+            }.bind(this));
+        }.bind(this));
 
         this.app.use(bodyParser.json({ type: 'application/json', limit: '5mb' }))  // parse various different custom JSON types as JSON    
         this.app.use(bodyParser.raw({ type: 'application/vnd.custom-type' })) // parse some custom thing into a Buffer      
