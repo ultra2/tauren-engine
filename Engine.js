@@ -52,7 +52,8 @@ class Engine {
                     return __awaiter(this, void 0, void 0, function* () {
                         var app = this.applications[msg];
                         yield app.cache();
-                        socket.emit('chooseApplication', msg);
+                        var result = yield app.compile();
+                        socket.emit('chooseApplication', result);
                     });
                 }.bind(this));
                 socket.on('getCompletionsAtPosition', function (msg) {

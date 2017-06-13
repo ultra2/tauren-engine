@@ -67,7 +67,8 @@ export default class Engine {
             socket.on('chooseApplication', async function(msg){
                 var app = this.applications[msg]
                 await app.cache()
-                socket.emit('chooseApplication', msg);
+                var result = await app.compile()
+                socket.emit('chooseApplication', result);
             }.bind(this));
             socket.on('getCompletionsAtPosition', function(msg){
                 var app = this.applications["webpack"]

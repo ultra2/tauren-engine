@@ -11,15 +11,19 @@ import * as webpack from 'webpack'
 import Utils from './utils'
 import * as model from './model'
 import Engine from './Engine'
-import * as ts from "typescript";
+import * as ts from "typescript"
+import CompilerHost from "./compilerHost"
 
 export default class Application {
 
-    private engine: Engine
-    private name: string
+    public engine: Engine
+    public name: string
     private loaded: boolean
-    public controllers: any   
+    public controllers: any
     public fs = {}
+    public compilerHost: ts.CompilerHost
+    public languageServiceHost: ts.LanguageServiceHost
+    public languageService: ts.LanguageService
 
     constructor(application: string, engine: Engine) {
         this.name = application
@@ -32,17 +36,20 @@ export default class Application {
         //}.bind(this)
     }
 
-    public async create(){
+    public async create() {
         await this.engine.db.collection(name).insertOne({
             _id: "fs",
-            _attachments: {                        
+            _attachments: {
             }
-        }, {w: 1})
+        }, { w: 1 })
 
         await this.engine.mongo.uploadFileOrFolder("index.html", "hello")
-    } 
+    }
 
-    public async init(){
+    public async init() {
+        this.compilerHost = new CompilerHost(this)
+        this.languageServiceHost = this.createLanguageServiceHost()
+        this.languageService = ts.createLanguageService(this.languageServiceHost, ts.createDocumentRegistry())
         this.loaded = false
         this.controllers = {} //namespace
         try {
@@ -133,49 +140,54 @@ export default class Application {
     }
 
     public async cache() {
-        
+
         var fs = await this.loadDocument("fs")
         await this.cacheStub(fs._attachments, "/" + this.name)
-        
+
         //this.engine.cache.mkdirpSync("/" + this.name);
 
         //var tsconfig = await this.engine.mongo.loadFile(this.name + "/" + "tsconfig.json")
         //this.engine.cache.writeFileSync("/webpack/tsconfig.json", tsconfig.buffer);
 
         //var scriptts = await this.engine.mongo.loadFile(this.name + "/" + "script.ts")
-	    //this.engine.cache.writeFileSync("/webpack/script.ts", scriptts.buffer);
+        //this.engine.cache.writeFileSync("/webpack/script.ts", scriptts.buffer);
 
         //var maints = await this.engine.mongo.loadFile(this.name + "/" + "main.ts")
-	    //this.engine.cache.writeFileSync("/webpack/main.ts", maints.buffer);
+        //this.engine.cache.writeFileSync("/webpack/main.ts", maints.buffer);
     }
 
     public async cacheStub(fileStub: any, path: string) {
-        
-        if (path.indexOf('.') == -1){  //folder?
+
+        if (path.indexOf('.') == -1) {  //folder?
             this.engine.cache.mkdirpSync(path);
             for (var key in fileStub) {
                 await this.cacheStub(fileStub[key], path + "/" + key)
             }
         }
-        else{
-            var fileinfo = await this.engine.mongo.loadFile(path)
-	        this.engine.cache.writeFileSync(path, fileinfo.buffer);
+        else {
+            await this.cacheFile(path);
         }
     }
 
-    public getCompletionsAtPosition(msg) {
+    public async cacheFile(path: string) {
+        var fileinfo = await this.engine.mongo.loadFile(path)
+        if (path[0] != '/') path = '/' + path  //memory-fs fix.
+        this.engine.cache.writeFileSync(path, fileinfo.buffer)
+    }
 
-        // Create the language service host to allow the LS to communicate with the host
-        const serviceHost: ts.LanguageServiceHost = {
-            getScriptFileNames: function() { 
-                return ['/virtual/' + this.name + "/main.ts"] 
+    // Create the language service host to allow the LS to communicate with the host
+    private createLanguageServiceHost(): ts.LanguageServiceHost {
+
+        return {
+            getScriptFileNames: function () {
+                return ['/virtual/' + this.name + "/main.ts"]
             }.bind(this),
-            getScriptVersion: function(fileName) {
+            getScriptVersion: function (fileName) {
                 return "1.0.0"
             }.bind(this),
-            getScriptSnapshot: function(fileName) {
+            getScriptSnapshot: function (fileName) {
                 console.log("getScriptSnapshot", fileName)
-                
+
                 if (!fs.existsSync(fileName)) {
                     return undefined;
                 }
@@ -185,42 +197,114 @@ export default class Application {
                 //}
                 //return ts.ScriptSnapshot.fromString(this.engine.cache.readFileSync(fileName).toString());
             }.bind(this),
-            getCurrentDirectory: function(){ 
+            getCurrentDirectory: function () {
                 return '/virtual/' + this.name
             }.bind(this),
-            getCompilationSettings: function(){
-                return { 
-                    noEmitOnError: true, 
+            getCompilationSettings: function () {
+                return {
+                    noEmitOnError: true,
                     noImplicitAny: true,
-                    target: ts.ScriptTarget.ES5, 
+                    target: ts.ScriptTarget.ES5,
                     module: ts.ModuleKind.CommonJS
                 }
             }.bind(this),
-            getDefaultLibFileName: function(options){
+            getDefaultLibFileName: function (options) {
                 return ts.getDefaultLibFilePath(options)
             }.bind(this),
         }
-
-        // Create the language service files
-        const service = ts.createLanguageService(serviceHost, ts.createDocumentRegistry())
-
-        const completions: ts.CompletionInfo = service.getCompletionsAtPosition('/virtual/' + this.name + msg.filePath, msg.position);
-
-        return completions
     }
 
-    public async build() : Promise<Object> {
+    public getCompletionsAtPosition(msg) {
+
+        const completions: ts.CompletionInfo = this.languageService.getCompletionsAtPosition('/virtual/' + this.name + msg.filePath, msg.position)
+
+        let completionList = completions || {}
+        completionList["entries"] = completionList["entries"] || []
+
+        // limit to maxSuggestions
+        let maxSuggestions = 1000
+        if (completionList["entries"].length > maxSuggestions) completionList["entries"] = completionList["entries"].slice(0, maxSuggestions)
+
+        return completionList
+    }
+
+    public async compile(): Promise<Object> {
+        
+
+        let program = ts.createProgram(
+            this.languageServiceHost.getScriptFileNames(), 
+            {
+                outFile: "dist/main-all.js",
+                noEmitOnError: true,
+                noImplicitAny: true,
+                target: ts.ScriptTarget.ES5,
+                module: ts.ModuleKind.AMD
+            },
+            this.compilerHost
+        )
+        
+        let emitResult = program.emit()
+ 
+
+
+        //var sourceFiles = program.getSourceFiles()
+
+        //sourceFiles.forEach(fileName => {
+
+        //    let output = this.languageService.getEmitOutput(fileName.path);
+           
+        //    if (!output.emitSkipped) {
+        //        console.log("Emitting " + fileName.name);
+        //    }
+        //    else {
+        //        console.log("Emitting " + fileName.name + " failed");
+        //    }
+
+        //    output.outputFiles.forEach(o => {
+        //        console.log("Emitting " + o.name);
+        //        fs.writeFileSync(o.name, o.text)
+        //    });
+        //})
+
+        //let emitResult = program.emit(null, function(fileName: string, data: string, writeByteOrderMark: boolean, onError?: (message: string) => void, sourceFiles?: ts.SourceFile[]){
+        //    debugger
+        //    this.engine.cache.writeFileSync(fileName, data)
+        //}, null, null)
+
+        return emitResult.diagnostics
+    }
+
+    public async build(): Promise<Object> {
+        return { message: "build" }
+    }
+
+    public async build2(): Promise<Object> {
+
+
+        //var path = this.languageServiceHost.getScriptFileNames()[0]
+        //let output = this.languageService.getEmitOutput(path);
+        //var f0 = output.outputFiles[0]
+        //f0.name, f0.text  //csak a main.ts *t forditja le.
+
+        //this.engine.cache.writeFileSync(f0.name, f0.text)
+
+        //var sourceFiles = ['/virtual/' + this.name + "/main.ts"] 
+
+        //const program = ts.createProgram(sourceFiles, options, host);
+        //let emitResult = program.emit();
+
+
         //var memfs = new MemoryFileSystem()
 
         //memfs.mkdirpSync("/src");
         //memfs.writeFileSync("/script.ts", await this.fs.loadFile("src/script.ts"));
-        
+
         //var self = this
 
         //function getMongoSystem(ts) {
         //    var mongoSystem = {
         //        readFile: function(fileName, encoding) {
-                    //self.fs.
+        //self.fs.
         //        }
         //    }
         //    return mongoSystem;
@@ -235,33 +319,33 @@ export default class Application {
 
         //var index = fs.readFileSync('/virtual/index2.html')
 
-	//Load source into cache 
+        //Load source into cache 
 
-        await this.cache()
-        
+        //await this.cache()
+
         var compiler = webpack({
             //context: '/',
-            entry: '/virtual/' + this.name + '/main.ts',  
+            entry: '/virtual/' + this.name + '/main.ts',
             resolve: {
                 extensions: ['.ts'] //ha nincs találat .ts -el is próbálkozik
             },
             module: {
                 rules: [
-                    { 
-                        test: /\.tsx?$/, 
-                        loader: 'ts-loader', 
+                    {
+                        test: /\.tsx?$/,
+                        loader: 'ts-loader',
                         options: {
                             transpileOnly: true
-                        } 
+                        }
                     }
                 ]
             },
             output: {
                 path: '/mongo/' + this.name + '/dist',
-                filename: 'build.js'  
+                filename: 'build.js'
             }
         });
-        
+
         //var ifs = compiler["inputFileSystem"]
         //var ifsfunc = {}
 
@@ -296,7 +380,7 @@ export default class Application {
         compiler["resolvers"].normal.fileSystem = fs //entry module filesystem ./src/script.ts' in '/Users/ivanzsolt/Documents/openshift/v3/tauren-engine'
         compiler["resolvers"].loader.fileSystem = fs //node_modules -t keres a mongofs-ben
         compiler["resolvers"].context.fileSystem = fs
- 
+
         //compiler.outputFileSystem = this.engine.mongo
         compiler.outputFileSystem = fs
 
@@ -304,7 +388,7 @@ export default class Application {
             compiler.run(async function (err, stats) {
                 var message = ""
                 if (err) {
-                    message += (err.stack || err) 
+                    message += (err.stack || err)
                     if (err.details) message += err.details
                 }
 
@@ -312,7 +396,7 @@ export default class Application {
 
                 if (stats.hasErrors()) message += info.errors
                 if (stats.hasWarnings()) message += info.warnings
-                
+
                 //if (err) {
                 //    resolve({ message: err })
                 //    return
@@ -327,5 +411,5 @@ export default class Application {
             }.bind(this));
         }.bind(this))
     }
-  
+
 }

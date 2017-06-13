@@ -1,0 +1,68 @@
+/// <reference path="_all.d.ts" />
+
+import * as ts from "typescript";
+
+export class LanguageServiceHost implements ts.LanguageServiceHost {
+
+  getCompilationSettings(): ts.CompilerOptions {
+    return { 
+        noEmitOnError: true, 
+        noImplicitAny: true,
+        target: ts.ScriptTarget.ES5, 
+        module: ts.ModuleKind.CommonJS
+    }
+  }
+
+  getNewLine?(): string;
+
+  getProjectVersion?(): string;
+
+  getScriptFileNames(): string[] {
+    return ['/virtual/' + this.name + "/main.ts"] 
+  }
+
+  getScriptKind?(fileName: string): ScriptKind;
+  getScriptVersion(fileName: string): string;
+  getScriptSnapshot(fileName: string): IScriptSnapshot | undefined;
+  getLocalizedDiagnosticMessages?(): any;
+  getCancellationToken?(): HostCancellationToken;
+  getCurrentDirectory(): string;
+  getDefaultLibFileName(options: CompilerOptions): string;
+  log?(s: string): void;
+  trace?(s: string): void;
+  error?(s: string): void;
+  useCaseSensitiveFileNames?(): boolean;
+  readDirectory?(path: string, extensions?: string[], exclude?: string[], include?: string[]): string[];
+  readFile?(path: string, encoding?: string): string;
+  fileExists?(path: string): boolean;
+  getTypeRootsVersion?(): number;
+  resolveModuleNames?(moduleNames: string[], containingFile: string): ResolvedModule[];
+  resolveTypeReferenceDirectives?(typeDirectiveNames: string[], containingFile: string): ResolvedTypeReferenceDirective[];
+  directoryExists?(directoryName: string): boolean;
+  getDirectories?(directoryName: string): string[];
+
+
+  getDefaultLibFileName() {
+    return null
+  }
+  
+  getScriptVersion(fileName) {
+    return "1.0.0"
+  }
+
+  getScriptSnapshot(fileName) {
+    console.log("getScriptSnapshot", fileName)
+                
+    if (!fs.existsSync(fileName)) {
+      return undefined;
+    }
+    
+    return ts.ScriptSnapshot.fromString(fs.readFileSync(fileName).toString());
+  }
+  
+  getCurrentDirectory() { 
+    return '/virtual/' + this.name
+  }
+
+
+}

@@ -13,6 +13,7 @@ const JSZip = require("jszip");
 const webpack = require("webpack");
 const utils_1 = require("./utils");
 const ts = require("typescript");
+const compilerHost_1 = require("./compilerHost");
 class Application {
     constructor(application, engine) {
         this.fs = {};
@@ -30,6 +31,9 @@ class Application {
     }
     init() {
         return __awaiter(this, void 0, void 0, function* () {
+            this.compilerHost = new compilerHost_1.default(this);
+            this.languageServiceHost = this.createLanguageServiceHost();
+            this.languageService = ts.createLanguageService(this.languageServiceHost, ts.createDocumentRegistry());
             this.loaded = false;
             this.controllers = {};
             try {
@@ -126,13 +130,20 @@ class Application {
                 }
             }
             else {
-                var fileinfo = yield this.engine.mongo.loadFile(path);
-                this.engine.cache.writeFileSync(path, fileinfo.buffer);
+                yield this.cacheFile(path);
             }
         });
     }
-    getCompletionsAtPosition(msg) {
-        const serviceHost = {
+    cacheFile(path) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var fileinfo = yield this.engine.mongo.loadFile(path);
+            if (path[0] != '/')
+                path = '/' + path;
+            this.engine.cache.writeFileSync(path, fileinfo.buffer);
+        });
+    }
+    createLanguageServiceHost() {
+        return {
             getScriptFileNames: function () {
                 return ['/virtual/' + this.name + "/main.ts"];
             }.bind(this),
@@ -161,13 +172,36 @@ class Application {
                 return ts.getDefaultLibFilePath(options);
             }.bind(this),
         };
-        const service = ts.createLanguageService(serviceHost, ts.createDocumentRegistry());
-        const completions = service.getCompletionsAtPosition('/virtual/' + this.name + msg.filePath, msg.position);
-        return completions;
+    }
+    getCompletionsAtPosition(msg) {
+        const completions = this.languageService.getCompletionsAtPosition('/virtual/' + this.name + msg.filePath, msg.position);
+        let completionList = completions || {};
+        completionList["entries"] = completionList["entries"] || [];
+        let maxSuggestions = 1000;
+        if (completionList["entries"].length > maxSuggestions)
+            completionList["entries"] = completionList["entries"].slice(0, maxSuggestions);
+        return completionList;
+    }
+    compile() {
+        return __awaiter(this, void 0, void 0, function* () {
+            let program = ts.createProgram(this.languageServiceHost.getScriptFileNames(), {
+                outFile: "dist/main-all.js",
+                noEmitOnError: true,
+                noImplicitAny: true,
+                target: ts.ScriptTarget.ES5,
+                module: ts.ModuleKind.AMD
+            }, this.compilerHost);
+            let emitResult = program.emit();
+            return emitResult.diagnostics;
+        });
     }
     build() {
         return __awaiter(this, void 0, void 0, function* () {
-            yield this.cache();
+            return { message: "build" };
+        });
+    }
+    build2() {
+        return __awaiter(this, void 0, void 0, function* () {
             var compiler = webpack({
                 entry: '/virtual/' + this.name + '/main.ts',
                 resolve: {
