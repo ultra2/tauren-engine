@@ -18,7 +18,8 @@ export default class CompilerHost implements ts.CompilerHost {
 
   getDefaultLibFileName(options: ts.CompilerOptions): string {
     console.log("getDefaultLibFileName", arguments)
-    return "/Users/ivanzsolt/Documents/openshift/v3/tauren-engine/node_modules/typescript/lib/lib.d.ts"
+    //return "/Users/ivanzsolt/Documents/openshift/v3/tauren-engine/node_modules/typescript/lib/lib.d.ts"
+    return process.cwd() + "/node_modules/typescript/lib/lib.d.ts"
   }
 
   writeFile(fileName: string, data: string, writeByteOrderMark: boolean, onError?: (message: string) => void, sourceFiles?: ts.SourceFile[]): void {

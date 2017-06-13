@@ -13,7 +13,7 @@ class CompilerHost {
     }
     getDefaultLibFileName(options) {
         console.log("getDefaultLibFileName", arguments);
-        return "/Users/ivanzsolt/Documents/openshift/v3/tauren-engine/node_modules/typescript/lib/lib.d.ts";
+        return process.cwd() + "/node_modules/typescript/lib/lib.d.ts";
     }
     writeFile(fileName, data, writeByteOrderMark, onError, sourceFiles) {
         console.log("writeFile", arguments);
