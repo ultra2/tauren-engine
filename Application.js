@@ -65,8 +65,8 @@ class Application {
     }
     loadDocument(path) {
         return __awaiter(this, void 0, void 0, function* () {
-            var result = yield this.engine.db.collection(this.name).findOne({ _id: path });
-            result = JSON.stringify(result).replace(/\*/g, '.');
+            var doc = yield this.engine.db.collection(this.name).findOne({ _id: path });
+            var result = JSON.stringify(doc).replace(/\*/g, '.');
             return JSON.parse(result);
         });
     }

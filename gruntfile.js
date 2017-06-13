@@ -9,6 +9,7 @@ module.exports = function(grunt) {
           dest: "."
         }],
         options: {
+          rootDir: "src",
           module: "commonjs",
           noLib: true,
           target: "es6",
