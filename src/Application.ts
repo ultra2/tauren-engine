@@ -139,7 +139,9 @@ export default class Application {
         return { message: "Package installed successfully!" }
     }
 
-    public async cache() {
+    public async cache(socket) {
+
+        socket.emit("log", "Caching...")
 
         var fs = await this.loadDocument("fs")
         await this.cacheStub(fs._attachments, "/" + this.name)
@@ -154,6 +156,8 @@ export default class Application {
 
         //var maints = await this.engine.mongo.loadFile(this.name + "/" + "main.ts")
         //this.engine.cache.writeFileSync("/webpack/main.ts", maints.buffer);
+
+        socket.emit("log", "Caching finished.")
     }
 
     public async cacheStub(fileStub: any, path: string) {
@@ -186,7 +190,7 @@ export default class Application {
                 return "1.0.0"
             }.bind(this),
             getScriptSnapshot: function (fileName) {
-                console.log("getScriptSnapshot", fileName)
+                //console.log("getScriptSnapshot", fileName)
 
                 if (!fs.existsSync(fileName)) {
                     return undefined;
@@ -228,8 +232,9 @@ export default class Application {
         return completionList
     }
 
-    public async compile(): Promise<Object> {
+    public async compile(socket): Promise<void> {
         
+        if (socket) socket.emit("log", "Compile started...")
 
         let program = ts.createProgram(
             this.languageServiceHost.getScriptFileNames(), 
@@ -245,7 +250,17 @@ export default class Application {
         
         let emitResult = program.emit()
  
+        let allDiagnostics = ts.getPreEmitDiagnostics(program).concat(emitResult.diagnostics);
 
+        allDiagnostics.forEach(diagnostic => {
+            let { line, character } = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
+            let message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
+            socket.emit("log", `${diagnostic.file.fileName} (${line + 1},${character + 1}): ${message}`);
+        });
+ 
+        let exitCode = emitResult.emitSkipped ? "failed" : "success"
+
+        socket.emit("log", "Compile finished: " + exitCode)
 
         //var sourceFiles = program.getSourceFiles()
 
@@ -271,7 +286,7 @@ export default class Application {
         //    this.engine.cache.writeFileSync(fileName, data)
         //}, null, null)
 
-        return emitResult.diagnostics
+        //return emitResult.diagnostics
     }
 
     public async build(): Promise<Object> {

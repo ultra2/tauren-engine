@@ -115,10 +115,12 @@ class Application {
             return { message: "Package installed successfully!" };
         });
     }
-    cache() {
+    cache(socket) {
         return __awaiter(this, void 0, void 0, function* () {
+            socket.emit("log", "Caching...");
             var fs = yield this.loadDocument("fs");
             yield this.cacheStub(fs._attachments, "/" + this.name);
+            socket.emit("log", "Caching finished.");
         });
     }
     cacheStub(fileStub, path) {
@@ -151,7 +153,6 @@ class Application {
                 return "1.0.0";
             }.bind(this),
             getScriptSnapshot: function (fileName) {
-                console.log("getScriptSnapshot", fileName);
                 if (!fs.existsSync(fileName)) {
                     return undefined;
                 }
@@ -182,8 +183,10 @@ class Application {
             completionList["entries"] = completionList["entries"].slice(0, maxSuggestions);
         return completionList;
     }
-    compile() {
+    compile(socket) {
         return __awaiter(this, void 0, void 0, function* () {
+            if (socket)
+                socket.emit("log", "Compile started...");
             let program = ts.createProgram(this.languageServiceHost.getScriptFileNames(), {
                 outFile: "dist/main-all.js",
                 noEmitOnError: true,
@@ -192,7 +195,14 @@ class Application {
                 module: ts.ModuleKind.AMD
             }, this.compilerHost);
             let emitResult = program.emit();
-            return emitResult.diagnostics;
+            let allDiagnostics = ts.getPreEmitDiagnostics(program).concat(emitResult.diagnostics);
+            allDiagnostics.forEach(diagnostic => {
+                let { line, character } = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
+                let message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
+                socket.emit("log", `${diagnostic.file.fileName} (${line + 1},${character + 1}): ${message}`);
+            });
+            let exitCode = emitResult.emitSkipped ? "failed" : "success";
+            socket.emit("log", "Compile finished: " + exitCode);
         });
     }
     build() {

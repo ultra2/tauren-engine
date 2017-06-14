@@ -48,12 +48,38 @@ class Engine {
                 socket.on('disconnect', function () {
                     console.log('socket disconnect');
                 }.bind(this));
-                socket.on('chooseApplication', function (msg) {
+                socket.emit("info", this.info);
+                socket.emit("applications", Object.keys(this.applications));
+                socket.on('openApplication', function (msg) {
                     return __awaiter(this, void 0, void 0, function* () {
                         var app = this.applications[msg];
-                        yield app.cache();
-                        var result = yield app.compile();
-                        socket.emit('chooseApplication', result);
+                        yield app.cache(socket);
+                        yield app.compile(socket);
+                        var fs = yield app.loadDocument("fs");
+                        socket.emit("application", {
+                            name: app.name,
+                            attachments: fs["_attachments"]
+                        });
+                    });
+                }.bind(this));
+                socket.on('editFile', function (msg) {
+                    return __awaiter(this, void 0, void 0, function* () {
+                        var fileInfo = yield this.mongo.loadFile(msg.app + "/" + msg.path);
+                        socket.emit("editFile", {
+                            path: msg.path,
+                            contentType: fileInfo.contentType,
+                            content: fileInfo.buffer.toString()
+                        });
+                    });
+                }.bind(this));
+                socket.on('saveFile', function (msg) {
+                    return __awaiter(this, void 0, void 0, function* () {
+                        var content = new Buffer(msg.content, 'base64').toString();
+                        yield this.mongo.uploadFileOrFolder(msg.app + msg.path, content);
+                        socket.emit("log", "saveFile finished: " + msg.app + msg.path);
+                        var targetApp = this.applications[msg.app];
+                        yield targetApp.cacheFile(msg.app + msg.path);
+                        yield targetApp.compile(socket);
                     });
                 }.bind(this));
                 socket.on('getCompletionsAtPosition', function (msg) {

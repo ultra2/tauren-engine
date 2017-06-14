@@ -61,20 +61,51 @@ export default class Engine {
 
         this.io.on('connection', function(socket) {
             console.log('socket connection')
+            
             socket.on('disconnect', function(){
                 console.log('socket disconnect');
             }.bind(this));
-            socket.on('chooseApplication', async function(msg){
+
+            socket.emit("info", this.info)  
+            socket.emit("applications", Object.keys(this.applications))  
+
+            socket.on('openApplication', async function(msg){
                 var app = this.applications[msg]
-                await app.cache()
-                var result = await app.compile()
-                socket.emit('chooseApplication', result);
+                await app.cache(socket)
+                await app.compile(socket)
+                var fs = await app.loadDocument("fs")
+                socket.emit("application", {
+                    name: app.name,
+                    attachments: fs["_attachments"]
+                }) 
             }.bind(this));
+
+            socket.on('editFile', async function(msg){
+                //var app = this.applications[msg.app]
+                var fileInfo = await this.mongo.loadFile(msg.app + "/" + msg.path)
+                socket.emit("editFile", {
+                    path: msg.path,
+                    contentType: fileInfo.contentType, 
+                    content: fileInfo.buffer.toString()
+                })
+            }.bind(this));
+
+            socket.on('saveFile', async function(msg){
+                var content = new Buffer(msg.content, 'base64').toString()
+                await this.mongo.uploadFileOrFolder(msg.app + msg.path, content)
+                socket.emit("log", "saveFile finished: " + msg.app + msg.path)
+
+                var targetApp = this.applications[msg.app]
+                await targetApp.cacheFile(msg.app + msg.path)
+                await targetApp.compile(socket)
+            }.bind(this));
+
             socket.on('getCompletionsAtPosition', function(msg){
                 var app = this.applications["webpack"]
                 msg = app.getCompletionsAtPosition(msg)
                 socket.emit('getCompletionsAtPosition', msg);
             }.bind(this));
+
         }.bind(this));
 
         this.app.use(bodyParser.json({ type: 'application/json', limit: '5mb' }))  // parse various different custom JSON types as JSON    
