@@ -133,7 +133,7 @@ class Application {
                 }
             }
             else {
-                if (this.getExt(path) != 'ts')
+                if (!this.isCachable(path))
                     return;
                 this.paths.push(path);
                 this.pathversions["/virtual" + path] = { version: 0 };
@@ -144,8 +144,14 @@ class Application {
         var re = /(?:\.([^.]+))?$/;
         return re.exec(path)[1];
     }
+    isCachable(path) {
+        var ext = this.getExt(path);
+        return (['ts', 'tsx', 'json'].indexOf(ext) != -1);
+    }
     cacheFile(path) {
         return __awaiter(this, void 0, void 0, function* () {
+            if (!this.isCachable(path))
+                return;
             var fileinfo = yield this.engine.mongo.loadFile(path);
             if (path[0] != '/')
                 path = '/' + path;

@@ -98,7 +98,7 @@ export default class Engine {
             }.bind(this));
 
             socket.on('getCompletionsAtPosition', function(msg){
-                var app = this.applications["webpack"]
+                var app = this.applications[msg.app]
                 msg = app.getCompletionsAtPosition(msg)
                 socket.emit('getCompletionsAtPosition', msg);
             }.bind(this));
@@ -224,7 +224,7 @@ export default class Engine {
         });
 
         this.router.get('/:application/:controller/:method/:url(*)?', async function (req: express.Request, res: express.Response, next: express.NextFunction) {
-            console.log("get " + req.originalUrl)
+            //console.log("get " + req.originalUrl)
             var application = req.params["application"]
             var controller = req.params["controller"]
             var method = req.params["method"]

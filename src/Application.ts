@@ -150,7 +150,7 @@ export default class Application {
             }
         }
         else {
-            if (this.getExt(path) != 'ts') return
+            if (!this.isCachable(path)) return
             this.paths.push(path)
             this.pathversions["/virtual" + path] = { version: 0 };
         }
@@ -161,7 +161,13 @@ export default class Application {
         return re.exec(path)[1]
     }
 
+    public isCachable(path) {
+        var ext = this.getExt(path)
+        return (['ts','tsx','json'].indexOf(ext) != -1)
+    }
+
     public async cacheFile(path: string) {
+        if (!this.isCachable(path)) return
         var fileinfo = await this.engine.mongo.loadFile(path)
         if (path[0] != '/') path = '/' + path  //memory-fs fix.
         this.engine.cache.writeFileSync(path, fileinfo.buffer)
