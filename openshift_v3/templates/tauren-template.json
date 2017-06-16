@@ -44,7 +44,7 @@
       },
       "spec": {
         "strategy": {
-          "type": "Rolling"
+          "type": "Recreate"
         },
         "triggers": [
           {
@@ -110,8 +110,8 @@
                 },
                 "resources": {
                   "limits": {
-                    "cpu": "100m",
-                    "memory": "512Mi"
+                    "cpu": "200m",
+                    "memory": "1Gi"
                   },
                   "requests": {
                     "cpu": "100m",

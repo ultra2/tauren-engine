@@ -8,15 +8,15 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const fs = require("fs");
 const JSZip = require("jszip");
-const webpack = require("webpack");
 const utils_1 = require("./utils");
 const ts = require("typescript");
-const compilerHost_1 = require("./compilerHost");
+const languageServiceHost_1 = require("./languageServiceHost");
 class Application {
     constructor(application, engine) {
         this.fs = {};
+        this.paths = [];
+        this.pathversions = {};
         this.name = application;
         this.engine = engine;
     }
@@ -31,8 +31,7 @@ class Application {
     }
     init() {
         return __awaiter(this, void 0, void 0, function* () {
-            this.compilerHost = new compilerHost_1.default(this);
-            this.languageServiceHost = this.createLanguageServiceHost();
+            this.languageServiceHost = new languageServiceHost_1.default(this);
             this.languageService = ts.createLanguageService(this.languageServiceHost, ts.createDocumentRegistry());
             this.loaded = false;
             this.controllers = {};
@@ -119,8 +118,10 @@ class Application {
         return __awaiter(this, void 0, void 0, function* () {
             socket.emit("log", "Caching...");
             var fs = yield this.loadDocument("fs");
+            this.paths = [];
             yield this.cacheStub(fs._attachments, "/" + this.name);
-            socket.emit("log", "Caching finished.");
+            yield Promise.all(this.paths.map((path) => __awaiter(this, void 0, void 0, function* () { yield this.cacheFile(path); })));
+            socket.emit("log", "Caching finished. Files count: " + this.paths.length);
         });
     }
     cacheStub(fileStub, path) {
@@ -132,9 +133,16 @@ class Application {
                 }
             }
             else {
-                yield this.cacheFile(path);
+                if (this.getExt(path) != 'ts')
+                    return;
+                this.paths.push(path);
+                this.pathversions["/virtual" + path] = { version: 0 };
             }
         });
+    }
+    getExt(path) {
+        var re = /(?:\.([^.]+))?$/;
+        return re.exec(path)[1];
     }
     cacheFile(path) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -142,37 +150,8 @@ class Application {
             if (path[0] != '/')
                 path = '/' + path;
             this.engine.cache.writeFileSync(path, fileinfo.buffer);
+            this.pathversions["/virtual" + path].version++;
         });
-    }
-    createLanguageServiceHost() {
-        return {
-            getScriptFileNames: function () {
-                return ['/virtual/' + this.name + "/main.ts"];
-            }.bind(this),
-            getScriptVersion: function (fileName) {
-                return "1.0.0";
-            }.bind(this),
-            getScriptSnapshot: function (fileName) {
-                if (!fs.existsSync(fileName)) {
-                    return undefined;
-                }
-                return ts.ScriptSnapshot.fromString(fs.readFileSync(fileName).toString());
-            }.bind(this),
-            getCurrentDirectory: function () {
-                return '/virtual/' + this.name;
-            }.bind(this),
-            getCompilationSettings: function () {
-                return {
-                    noEmitOnError: true,
-                    noImplicitAny: true,
-                    target: ts.ScriptTarget.ES5,
-                    module: ts.ModuleKind.CommonJS
-                };
-            }.bind(this),
-            getDefaultLibFileName: function (options) {
-                return ts.getDefaultLibFilePath(options);
-            }.bind(this),
-        };
     }
     getCompletionsAtPosition(msg) {
         const completions = this.languageService.getCompletionsAtPosition('/virtual/' + this.name + msg.filePath, msg.position);
@@ -187,15 +166,9 @@ class Application {
         return __awaiter(this, void 0, void 0, function* () {
             if (socket)
                 socket.emit("log", "Compile started...");
-            let program = ts.createProgram(this.languageServiceHost.getScriptFileNames(), {
-                outFile: "dist/main-all.js",
-                noEmitOnError: true,
-                noImplicitAny: true,
-                target: ts.ScriptTarget.ES5,
-                module: ts.ModuleKind.AMD
-            }, this.compilerHost);
-            let emitResult = program.emit();
-            let allDiagnostics = ts.getPreEmitDiagnostics(program).concat(emitResult.diagnostics);
+            let program = this.languageService.getProgram();
+            let emitResult = program.emit(undefined, this.WriteFile.bind(this));
+            let allDiagnostics = emitResult.diagnostics;
             allDiagnostics.forEach(diagnostic => {
                 let { line, character } = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
                 let message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
@@ -205,59 +178,12 @@ class Application {
             socket.emit("log", "Compile finished: " + exitCode);
         });
     }
+    WriteFile(fileName, data, writeByteOrderMark, onError, sourceFiles) {
+        this.engine.mongo.uploadFileOrFolder(this.name + "/" + fileName, data);
+    }
     build() {
         return __awaiter(this, void 0, void 0, function* () {
             return { message: "build" };
-        });
-    }
-    build2() {
-        return __awaiter(this, void 0, void 0, function* () {
-            var compiler = webpack({
-                entry: '/virtual/' + this.name + '/main.ts',
-                resolve: {
-                    extensions: ['.ts']
-                },
-                module: {
-                    rules: [
-                        {
-                            test: /\.tsx?$/,
-                            loader: 'ts-loader',
-                            options: {
-                                transpileOnly: true
-                            }
-                        }
-                    ]
-                },
-                output: {
-                    path: '/mongo/' + this.name + '/dist',
-                    filename: 'build.js'
-                }
-            });
-            compiler["inputFileSystem"] = fs;
-            compiler["resolvers"].normal.fileSystem = fs;
-            compiler["resolvers"].loader.fileSystem = fs;
-            compiler["resolvers"].context.fileSystem = fs;
-            compiler.outputFileSystem = fs;
-            return new Promise(function (resolve, reject) {
-                compiler.run(function (err, stats) {
-                    return __awaiter(this, void 0, void 0, function* () {
-                        var message = "";
-                        if (err) {
-                            message += (err.stack || err);
-                            if (err.details)
-                                message += err.details;
-                        }
-                        const info = stats.toJson();
-                        if (stats.hasErrors())
-                            message += info.errors;
-                        if (stats.hasWarnings())
-                            message += info.warnings;
-                        if (message == "")
-                            message = "ok";
-                        resolve({ message: message });
-                    });
-                }.bind(this));
-            }.bind(this));
         });
     }
 }

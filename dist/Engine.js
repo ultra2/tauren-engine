@@ -9,7 +9,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const http = require("http");
-const fs = require("fs");
 const express = require("express");
 const bodyParser = require("body-parser");
 const request = require("request");
@@ -29,7 +28,6 @@ class Engine {
     }
     run() {
         return __awaiter(this, void 0, void 0, function* () {
-            this.overrideBinding3();
             yield this.initRouter();
             yield this.initApp();
             yield this.initMongo();
@@ -338,70 +336,6 @@ class Engine {
             yield this.db.collection(destAppName + ".chunks").insertMany(chunks);
             yield this.loadApplication(destAppName);
         });
-    }
-    overrideBinding2() {
-        fs["realFunctions"] = {};
-        for (var methodName in fs) {
-            if (typeof fs[methodName] === 'function' && methodName[0] != methodName[0].toUpperCase()) {
-                fs["realFunctions"][methodName] = fs[methodName];
-                fs[methodName] = this.methodFactory2(methodName);
-            }
-        }
-    }
-    methodFactory2(methodName) {
-        return function () {
-            console.log(methodName, arguments[0]);
-            if (["access", "accessSync", "chmod", "chmodSync", "chown", "chownSync", "createReadStream", "createWriteStream", "exists", "existsSync", "lchown", "lchownSync", "lstat", "lstatSync", "mkdir", "mkdirSync", "mkdirp", "open", "openSync", "readdir", "readdirSync", "readFile", "readFileSync", "readlink", "readlinkSync", "rmdir", "rmdirSync", "stat", "statSync"].indexOf(methodName) != -1) {
-                if (arguments[0].substring(0, 8) == "/virtual") {
-                    console.log("from cache");
-                    return this.cache[methodName].apply(this.cache, arguments);
-                }
-                if (arguments[0].substring(0, 8) == "/mongo") {
-                    console.log("from mongo");
-                    return this.mongo[methodName].apply(this.mongo, arguments);
-                }
-            }
-            console.log("from fs");
-            return fs["realFunctions"][methodName].apply(fs, arguments);
-        }.bind(this);
-    }
-    overrideBinding3() {
-        var methods = ["access", "accessSync", "chmod", "chmodSync", "chown", "chownSync", "createReadStream", "createWriteStream", "exists", "existsSync", "lchown", "lchownSync", "lstat", "lstatSync", "mkdir", "mkdirSync", "mkdirp", "open", "openSync", "readdir", "readdirSync", "readFile", "readFileSync", "readlink", "readlinkSync", "rmdir", "rmdirSync", "stat", "statSync", "truncate", "truncateSync", "unlink", "unlinkSync", "writeFile", "writeFileSync"];
-        fs["realFunctions"] = {};
-        for (var i in methods) {
-            var methodName = methods[i];
-            fs["realFunctions"][methodName] = fs[methodName];
-            fs[methodName] = this.methodFactory3(methodName);
-        }
-        fs["join"] = utils_1.default.join;
-        fs["normalize"] = utils_1.default.normalize;
-    }
-    methodFactory3(methodName) {
-        return function () {
-            var a = arguments[0].substring(0, 6);
-            if (a != "/Users")
-                console.log(methodName, arguments[0]);
-            if (arguments[0].substring(0, 8) == "/virtual") {
-                console.log("from cache");
-                arguments[0] = arguments[0].substring(8);
-                return this.cache[methodName].apply(this.cache, arguments);
-            }
-            if (arguments[0].substring(0, 6) == "/mongo") {
-                console.log("from mongo");
-                arguments[0] = arguments[0].substring(7);
-                return this.mongo[methodName].apply(this.mongo, arguments);
-            }
-            if (a != "/Users")
-                console.log("from fs");
-            return fs["realFunctions"][methodName].apply(fs, arguments);
-        }.bind(this);
-    }
-    methodFactory4(methodName) {
-        return function () {
-            console.log(methodName, arguments[0]);
-            var result = fs["realFunctions"][methodName].apply(fs, arguments);
-            return result;
-        }.bind(this);
     }
 }
 exports.default = Engine;
