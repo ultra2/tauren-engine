@@ -46,5 +46,5 @@ git commit -m "fixed untracked files"
 Docker image build
 -------------------
 cd to root of project source where Dockerfile resides 
-docker docker build -t ultra2/tauren:1.0.6 .
+docker build -t ultra2/tauren:1.0.6 .
 docker push ultra2/tauren
