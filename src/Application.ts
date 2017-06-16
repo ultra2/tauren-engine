@@ -11,7 +11,7 @@ import Utils from './utils'
 import * as model from './model'
 import Engine from './Engine'
 import * as ts from "typescript"
-import LanguageServiceHost from "./languageServiceHost"
+import LanguageServiceHost from "./LanguageServiceHost"
 
 export default class Application {
 

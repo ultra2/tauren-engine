@@ -11,7 +11,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const JSZip = require("jszip");
 const utils_1 = require("./utils");
 const ts = require("typescript");
-const languageServiceHost_1 = require("./languageServiceHost");
+const LanguageServiceHost_1 = require("./LanguageServiceHost");
 class Application {
     constructor(application, engine) {
         this.fs = {};
@@ -31,7 +31,7 @@ class Application {
     }
     init() {
         return __awaiter(this, void 0, void 0, function* () {
-            this.languageServiceHost = new languageServiceHost_1.default(this);
+            this.languageServiceHost = new LanguageServiceHost_1.default(this);
             this.languageService = ts.createLanguageService(this.languageServiceHost, ts.createDocumentRegistry());
             this.loaded = false;
             this.controllers = {};
