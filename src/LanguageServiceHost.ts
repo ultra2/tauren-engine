@@ -55,7 +55,7 @@ export default class LanguageServiceHost implements ts.LanguageServiceHost {
     return { 
         outFile: "dist/main-all.js",
         noEmitOnError: true, 
-        noImplicitAny: true,
+        noImplicitAny: false,
         target: ts.ScriptTarget.ES5, 
         module: ts.ModuleKind.AMD,
         jsx: ts.JsxEmit.React
