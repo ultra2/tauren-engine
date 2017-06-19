@@ -48,3 +48,7 @@ Docker image build
 cd to root of project source where Dockerfile resides 
 docker build -t ultra2/tauren:1.0.6 .
 docker push ultra2/tauren
+
+
+new method:
+docker-compose up --build
