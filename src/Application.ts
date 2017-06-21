@@ -1,6 +1,7 @@
 /// <reference path="_all.d.ts" />
 "use strict";
 
+import * as fsextra from 'fs-extra'
 import * as mongodb from "mongodb"
 import * as mime from "mime"
 import * as stream from "stream"
@@ -12,6 +13,7 @@ import * as model from './model'
 import Engine from './Engine'
 import * as ts from "typescript"
 import LanguageServiceHost from "./LanguageServiceHost"
+var npmi = require('npmi');
 
 export default class Application {
 
@@ -133,6 +135,28 @@ export default class Application {
     }
 
     public async cache(socket) {
+
+        var virtualpath = "/tmp/virtual"
+        if (!fsextra.existsSync(virtualpath)){
+            console.log("create " + virtualpath);
+            fsextra.mkdirSync(virtualpath)
+        }
+        else{
+            console.log("exists " + virtualpath);
+        }
+
+        var projectpath = "/tmp/virtual/" + this.name
+        if (!fsextra.existsSync(projectpath)){
+            console.log("create " + projectpath);
+            fsextra.mkdirSync(projectpath)
+        }
+        else{
+            console.log("exists " + projectpath);
+        }
+
+        //console.log('empty ' + projectpath)
+        //fsextra.emptyDirSync(projectpath)
+
         socket.emit("log", "Caching...")
         var fs = await this.loadDocument("fs")
         this.paths = []
@@ -145,6 +169,7 @@ export default class Application {
 
         if (path.indexOf('.') == -1) {  //folder?
             this.engine.cache.mkdirpSync(path);
+            fsextra.mkdirpSync("/tmp/virtual/" + path)
             for (var key in fileStub) {
                 await this.cacheStub(fileStub[key], path + "/" + key)
             }
@@ -162,8 +187,9 @@ export default class Application {
     }
 
     public isCachable(path) {
-        var ext = this.getExt(path)
-        return (['ts','tsx','json'].indexOf(ext) != -1)
+        return true
+        //var ext = this.getExt(path)
+        //return (['ts','tsx','json'].indexOf(ext) != -1)
     }
 
     public async cacheFile(path: string) {
@@ -171,7 +197,42 @@ export default class Application {
         var fileinfo = await this.engine.mongo.loadFile(path)
         if (path[0] != '/') path = '/' + path  //memory-fs fix.
         this.engine.cache.writeFileSync(path, fileinfo.buffer)
+        fsextra.writeFileSync("/tmp/virtual/" + path, fileinfo.buffer)
         this.pathversions["/virtual" + path].version++;
+    }
+
+    public async npminstall() {
+        var projectpath = "/tmp/virtual/" + this.name
+
+        var options = {
+	        //name: 'react-split-pane',	// your module name
+            //version: '3.10.9',		// expected version [default: 'latest']
+	        path: projectpath,			// installation path [default: '.']
+	        forceInstall: false,	        // force install if set to true (even if already installed, it will do a reinstall) [default: false]
+            npmLoad: {				    // npm.load(options, callback): this is the "options" given to npm.load()
+                loglevel: 'silent'	    // [default: {loglevel: 'silent'}]
+            }
+        }
+
+        return new Promise<Object>(function (resolve, reject) {
+            npmi(options, function (err, result) {
+                if (err) {
+                    if (err.code === npmi.LOAD_ERR) {
+                        console.log('npm load error')
+                        reject(err)
+                        return
+                    }
+                    if (err.code === npmi.INSTALL_ERR) {
+                        console.log('npm install error: ' + err.message)
+                        reject(err)
+                        return
+                    }
+                    reject(err)
+                    return console.log(err.message);
+                }
+                resolve(result)
+            }.bind(this));
+        }.bind(this))
     }
 
     public getCompletionsAtPosition(msg) {
@@ -211,8 +272,16 @@ export default class Application {
         socket.emit("log", "Compile finished: " + exitCode)
     }
 
+    public loadFile(path: string): model.fileInfo {
+        var result = new model.fileInfo()
+        result.buffer = fsextra.readFileSync("/tmp/virtual/" + path) 
+        result.contentType = mime.lookup(path)
+        return result
+    }
+
     public WriteFile(fileName: string, data: string, writeByteOrderMark: boolean, onError?: (message: string) => void, sourceFiles?: ts.SourceFile[]): void{
         this.engine.mongo.uploadFileOrFolder(this.name + "/" + fileName, data)
+        fsextra.writeFileSync("/tmp/virtual/" + this.name + "/" + fileName, data)
     }
 
     public async build(): Promise<Object> {

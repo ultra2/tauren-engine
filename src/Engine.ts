@@ -1,7 +1,7 @@
 /// <reference path="_all.d.ts" />
 "use strict";
 
-import http = require('http');
+import http = require('http')
 import * as express from "express"
 import * as bodyParser from "body-parser"
 import * as request from "request"
@@ -12,7 +12,7 @@ import * as gridfs from "gridfs-stream"
 import MongoFS from './MongoFS'
 import Utils from './utils'
 import MemoryFileSystem = require('memory-fs') //You need to import export = style libraries with import require. This is because of the ES6 spec.
-import socketIo = require('socket.io');
+import socketIo = require('socket.io')
 
 
 export default class Engine {
@@ -69,6 +69,7 @@ export default class Engine {
             socket.on('openApplication', async function(msg){
                 var app = this.applications[msg]
                 await app.cache(socket)
+                await app.npminstall()
                 await app.compile(socket)
                 var fs = await app.loadDocument("fs")
                 socket.emit("application", {

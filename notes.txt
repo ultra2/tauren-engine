@@ -50,5 +50,24 @@ docker build -t ultra2/tauren:1.0.6 .
 docker push ultra2/tauren
 
 
-new method:
+Docker image build (new method)
+——————————————————————
+1. cd into project directory
+
+//it builds the app image (run Dockerfile) 
+docker build -t ultra2/tauren:1.0.6 .
+
+//it builds the container (run docker-compose.yml)
+//it runs the container (check result in console and Kitematic) 
 docker-compose up --build
+
+it pushes up the container to dockerhub
+docker push ultra2/tauren-engine
+
+
+
+
+
+
+
+

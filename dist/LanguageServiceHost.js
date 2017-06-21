@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const ts = require("typescript");
-const fs = require("fs");
+const fsextra = require("fs-extra");
 class LanguageServiceHost {
     constructor(_app) {
         this.app = _app;
@@ -14,14 +14,17 @@ class LanguageServiceHost {
     }
     getScriptSnapshot(fileName) {
         console.log("getScriptSnapshot", fileName);
+        if (fileName.substring(fileName.length - 36) == "node_modules/typescript/lib/lib.d.ts") {
+            console.log("fs: loaded: " + fileName);
+            return ts.ScriptSnapshot.fromString(fsextra.readFileSync(fileName).toString());
+        }
         if (fileName.substring(0, 13) == "/node_modules") {
-            fileName = __dirname.substring(0, __dirname.length - 5) + fileName;
-            if (!fs.existsSync(fileName)) {
-                console.log("fs: not exists: " + fileName);
+            if (!fsextra.existsSync("/tmp/virtual/" + this.app.name + "/" + fileName)) {
+                console.log("fs: not exists: " + "/tmp/virtual/" + this.app.name + "/" + fileName);
                 return undefined;
             }
-            console.log("fs: loaded: " + fileName);
-            return ts.ScriptSnapshot.fromString(fs.readFileSync(fileName).toString());
+            console.log("fs: loaded: " + "/tmp/virtual/" + this.app.name + "/" + fileName);
+            return ts.ScriptSnapshot.fromString(fsextra.readFileSync("/tmp/virtual/" + this.app.name + "/" + fileName).toString());
         }
         if (fileName.substring(0, 8) == "/virtual") {
             fileName = fileName.substring(8);
@@ -36,7 +39,7 @@ class LanguageServiceHost {
         return undefined;
     }
     getCurrentDirectory() {
-        return __dirname;
+        return "/tmp/virtual/" + this.app.name;
     }
     getCompilationSettings() {
         return {
@@ -49,7 +52,7 @@ class LanguageServiceHost {
         };
     }
     getDefaultLibFileName(options) {
-        return "/node_modules/typescript/lib/" + ts.getDefaultLibFileName(options);
+        return ts.getDefaultLibFilePath(options);
     }
 }
 exports.default = LanguageServiceHost;

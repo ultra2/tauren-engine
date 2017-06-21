@@ -1,9 +1,17 @@
-FROM node:7.2.1
+FROM node:boron
 
-RUN useradd --user-group --create-home --shell /bin/false app &&\
-  npm install --global npm@3.10.10
+RUN mkdir -p /tmp
 
-ENV HOME=/home/app
+# Create app directory
+RUN mkdir -p /usr/src/app
+WORKDIR /usr/src/app
 
-USER app
-WORKDIR $HOME/chat
+# Install app dependencies
+COPY package.json /usr/src/app/
+RUN npm install
+
+# Bundle app source
+COPY . /usr/src/app
+
+EXPOSE 8080
+CMD [ "npm", "start" ]

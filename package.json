@@ -1,7 +1,7 @@
 {
-  "name": "openshift-cartridge-nodejs-template",
+  "name": "tauren-engine",
   "version": "1.0.1",
-  "description": "Custom Node.js cartridge for OpenShift - sample application",
+  "description": "Tauren Engine",
   "private": true,
   "main": "dist/start.js",
   "engine": {
@@ -14,10 +14,6 @@
   "author": "Ionut-Cristian Florescu <ionut.florescu@gmail.com>",
   "license": "ISC",
   "dependencies": {
-    "@types/react": "^15.0.29",
-    "@types/react-bootstrap": "0.0.50",
-    "@types/react-dom": "^15.5.0",
-    "@types/react-split-pane": "^0.1.7",
     "body-parser": "^1.15.2",
     "core-js": "^2.4.1",
     "errno": "^0.1.4",
@@ -29,23 +25,18 @@
     "mongodb": "^2.2.10",
     "node-uuid": "^1.4.7",
     "npmi": "^2.0.1",
-    "react": "^15.6.1",
-    "react-bootstrap": "^0.31.0",
-    "react-dom": "^15.6.1",
-    "react-split-pane": "^0.1.63",
     "request": "^2.79.0",
-    "semantic-ui-react": "^0.68.5",
     "socket.io": "^2.0.2",
     "stream": "0.0.2",
     "systemjs": "0.19.40",
     "ts-loader": "^2.0.3",
     "typescript": "^2.0.7",
-    "webpack": "^2.3.2",
-    "zone.js": "^0.7.4"
+    "webpack": "^2.3.2"
   },
   "devDependencies": {
     "@types/body-parser": "0.0.33",
     "@types/express": "^4.0.34",
+    "@types/fs-extra": "^3.0.3",
     "@types/gridfs-stream": "^0.5.28",
     "@types/jszip": "0.0.31",
     "@types/memory-fs": "^0.3.0",

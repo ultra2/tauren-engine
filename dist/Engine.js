@@ -52,6 +52,7 @@ class Engine {
                     return __awaiter(this, void 0, void 0, function* () {
                         var app = this.applications[msg];
                         yield app.cache(socket);
+                        yield app.npminstall();
                         yield app.compile(socket);
                         var fs = yield app.loadDocument("fs");
                         socket.emit("application", {

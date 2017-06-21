@@ -1,5 +1,9 @@
-chat:
-  build: .
-  command: echo 'ready'
-  volumes:
-    - .:/home/app/chat
+version: '2'
+services:
+  chat:
+    build: .
+    ports:
+      - '8080:8080'
+    volumes:
+      - /tmp:/tmp
+  

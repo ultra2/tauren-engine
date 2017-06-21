@@ -8,10 +8,14 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const fsextra = require("fs-extra");
+const mime = require("mime");
 const JSZip = require("jszip");
 const utils_1 = require("./utils");
+const model = require("./model");
 const ts = require("typescript");
 const LanguageServiceHost_1 = require("./LanguageServiceHost");
+var npmi = require('npmi');
 class Application {
     constructor(application, engine) {
         this.fs = {};
@@ -116,6 +120,22 @@ class Application {
     }
     cache(socket) {
         return __awaiter(this, void 0, void 0, function* () {
+            var virtualpath = "/tmp/virtual";
+            if (!fsextra.existsSync(virtualpath)) {
+                console.log("create " + virtualpath);
+                fsextra.mkdirSync(virtualpath);
+            }
+            else {
+                console.log("exists " + virtualpath);
+            }
+            var projectpath = "/tmp/virtual/" + this.name;
+            if (!fsextra.existsSync(projectpath)) {
+                console.log("create " + projectpath);
+                fsextra.mkdirSync(projectpath);
+            }
+            else {
+                console.log("exists " + projectpath);
+            }
             socket.emit("log", "Caching...");
             var fs = yield this.loadDocument("fs");
             this.paths = [];
@@ -128,6 +148,7 @@ class Application {
         return __awaiter(this, void 0, void 0, function* () {
             if (path.indexOf('.') == -1) {
                 this.engine.cache.mkdirpSync(path);
+                fsextra.mkdirpSync("/tmp/virtual/" + path);
                 for (var key in fileStub) {
                     yield this.cacheStub(fileStub[key], path + "/" + key);
                 }
@@ -145,8 +166,7 @@ class Application {
         return re.exec(path)[1];
     }
     isCachable(path) {
-        var ext = this.getExt(path);
-        return (['ts', 'tsx', 'json'].indexOf(ext) != -1);
+        return true;
     }
     cacheFile(path) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -156,7 +176,39 @@ class Application {
             if (path[0] != '/')
                 path = '/' + path;
             this.engine.cache.writeFileSync(path, fileinfo.buffer);
+            fsextra.writeFileSync("/tmp/virtual/" + path, fileinfo.buffer);
             this.pathversions["/virtual" + path].version++;
+        });
+    }
+    npminstall() {
+        return __awaiter(this, void 0, void 0, function* () {
+            var projectpath = "/tmp/virtual/" + this.name;
+            var options = {
+                path: projectpath,
+                forceInstall: false,
+                npmLoad: {
+                    loglevel: 'silent'
+                }
+            };
+            return new Promise(function (resolve, reject) {
+                npmi(options, function (err, result) {
+                    if (err) {
+                        if (err.code === npmi.LOAD_ERR) {
+                            console.log('npm load error');
+                            reject(err);
+                            return;
+                        }
+                        if (err.code === npmi.INSTALL_ERR) {
+                            console.log('npm install error: ' + err.message);
+                            reject(err);
+                            return;
+                        }
+                        reject(err);
+                        return console.log(err.message);
+                    }
+                    resolve(result);
+                }.bind(this));
+            }.bind(this));
         });
     }
     getCompletionsAtPosition(msg) {
@@ -184,8 +236,15 @@ class Application {
             socket.emit("log", "Compile finished: " + exitCode);
         });
     }
+    loadFile(path) {
+        var result = new model.fileInfo();
+        result.buffer = fsextra.readFileSync("/tmp/virtual/" + path);
+        result.contentType = mime.lookup(path);
+        return result;
+    }
     WriteFile(fileName, data, writeByteOrderMark, onError, sourceFiles) {
         this.engine.mongo.uploadFileOrFolder(this.name + "/" + fileName, data);
+        fsextra.writeFileSync("/tmp/virtual/" + this.name + "/" + fileName, data);
     }
     build() {
         return __awaiter(this, void 0, void 0, function* () {
