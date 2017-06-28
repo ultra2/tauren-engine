@@ -1,6 +1,7 @@
 /// <reference path="_all.d.ts" />
 "use strict";
 
+import * as uuid from "node-uuid"
 import * as fsextra from 'fs-extra'
 import * as mongodb from "mongodb"
 import * as mime from "mime"
@@ -19,6 +20,7 @@ export default class Application {
 
     public engine: Engine
     public name: string
+    public path: string
     private loaded: boolean
     public controllers: any
     public fs = {}
@@ -26,9 +28,12 @@ export default class Application {
     public languageService: ts.LanguageService
     public paths : string[] = []
     public pathversions: ts.MapLike<{ version: number }> = {}
+    public filesRoot: object
+    public filesArray: Array<any>
 
     constructor(application: string, engine: Engine) {
         this.name = application
+        this.path = "/tmp/virtual/" + this.name
         this.engine = engine
     }
 
@@ -48,15 +53,36 @@ export default class Application {
         this.loaded = false
         this.controllers = {} //namespace
         try {
-            var fileInfo = await this.engine.mongo.loadFile(this.name + "/controller.js")
-            var F = Function('app', fileInfo.buffer)
+            var fs = await this.loadDocument("fs")
+            if (fs){ 
+                var fileInfo = await this.engine.mongo.loadFile(this.name + "/controller.js")
+                var F = Function('app', fileInfo.buffer)
+                F(this)
+                this.loaded = true
+                console.log("Application loaded: " + this.name);
+                return
+            }
+            //new method
+            await this.createTree()
+            await this.cache2()
+            await this.npminstall()
+            var buffer = this.loadFile2("controller.js")
+            var F = Function('app', buffer)
             F(this)
             this.loaded = true
             console.log("Application loaded: " + this.name);
+            return
         }
         catch (err) {
             console.log("Application could not been loaded: " + this.name + ", " + err);
         }
+    }
+
+    public async open(socket: any) {
+        await this.createTree()
+        await this.cache2(socket)
+        await this.npminstall()
+        await this.compile(socket)
     }
 
     public async listDocuments() {
@@ -134,8 +160,7 @@ export default class Application {
         return { message: "Package installed successfully!" }
     }
 
-    public async cache(socket) {
-
+    public createTempDir(){
         var virtualpath = "/tmp/virtual"
         if (!fsextra.existsSync(virtualpath)){
             console.log("create " + virtualpath);
@@ -156,7 +181,10 @@ export default class Application {
 
         //console.log('empty ' + projectpath)
         //fsextra.emptyDirSync(projectpath)
+    }
 
+    public async cache(socket) {
+        this.createTempDir()
         socket.emit("log", "Caching...")
         var fs = await this.loadDocument("fs")
         this.paths = []
@@ -175,39 +203,107 @@ export default class Application {
             }
         }
         else {
-            if (!this.isCachable(path)) return
             this.paths.push(path)
             this.pathversions["/virtual" + path] = { version: 0 };
         }
     }
- 
-    public getExt(path) {
-        var re = /(?:\.([^.]+))?$/
-        return re.exec(path)[1]
-    }
-
-    public isCachable(path) {
-        return true
-        //var ext = this.getExt(path)
-        //return (['ts','tsx','json'].indexOf(ext) != -1)
-    }
-
+    
     public async cacheFile(path: string) {
-        if (!this.isCachable(path)) return
         var fileinfo = await this.engine.mongo.loadFile(path)
         if (path[0] != '/') path = '/' + path  //memory-fs fix.
         this.engine.cache.writeFileSync(path, fileinfo.buffer)
-        fsextra.writeFileSync("/tmp/virtual/" + path, fileinfo.buffer)
+        fsextra.writeFileSync("/tmp/virtual/" + path, fileinfo.buffer, { flag : 'w' })
         this.pathversions["/virtual" + path].version++;
     }
 
-    public async npminstall() {
-        var projectpath = "/tmp/virtual/" + this.name
+    public async cache2(socket?) {
+        this.createTempDir()
+        if (socket) socket.emit("log", "Caching...")
+        await Promise.all(this.filesArray.map( async file => { await this.cacheFile2(file) }))
+        if (socket) socket.emit("log", "Caching finished. Files/Folders count: " + this.filesArray.length)
+    }
+    
+    public async cacheFile2(file: any) {
+        if (file.contentType == "text/directory"){
+            fsextra.mkdirpSync(this.path + '/' + file.path)
+            return
+        }
+        var buffer = await this.loadFileById(file._id)
+        fsextra.writeFileSync(this.path + '/' + file.path, buffer, { flag : 'w' })
+    }
 
+    //public async cacheFileById(id: string) {
+    //    debugger
+
+    //    var file = await new Promise<Object>(function (resolve, reject) {
+
+    //        this.engine.gridfs.findOne({ _id: id}, function (err, file) {
+    //            resolve(file);
+    //        })
+    //    })
+
+    //    if (file["contentType"] == "text/directory"){
+    //        fsextra.mkdirpSync(this.path + file.path)
+    //        return
+    //    }
+    //    var buffer = await this.loadFileById(id)
+    //    fsextra.writeFileSync(this.path + file.path, buffer, { flag : 'w' })
+    //}
+
+    findFile(path) : any{
+        var files = this.filesArray.filter(file => file.path === path)
+        if (files.length == 0){
+            return undefined
+        }
+        return files[0]
+    }
+
+    findFileById(_id) : any{
+        var files = this.filesArray.filter(file => file._id === _id)
+        if (files.length == 0){
+            return undefined
+        }
+        return files[0]
+    }
+
+
+    public async loadFileById(id: string): Promise<any> {
+        var readstream = this.engine.gridfs.createReadStream({
+            _id: id,
+            root: this.name
+        })
+
+        try {
+            return await Utils.fromStream(readstream)
+        }
+        catch (err) {
+            throw Error(err.message)
+        }
+    }
+
+    public async createTree(){
+        this.filesArray = await this.engine.db.collection(this.name + ".files").find().toArray()
+        this.filesRoot = this.filesArray.filter(file => file.metadata.parent_id === null)[0]
+        this.createTreeChildren(this.filesRoot, '')
+    }
+
+    public createTreeChildren(node, path){
+        node.path = path
+        if (node.contentType == "text/directory"){
+            node.children = this.filesArray.filter(file => file.metadata.parent_id === node._id)
+            for (var i in node.children) {
+                var child = node.children[i] 
+                var childPath = (node.path) ? node.path + '/' + child.filename : child.filename
+                this.createTreeChildren(child, childPath)
+            }
+        }
+    }
+
+    public async npminstall() {
         var options = {
 	        //name: 'react-split-pane',	// your module name
             //version: '3.10.9',		// expected version [default: 'latest']
-	        path: projectpath,			// installation path [default: '.']
+	        path: this.path,			// installation path [default: '.']
 	        forceInstall: false,	        // force install if set to true (even if already installed, it will do a reinstall) [default: false]
             npmLoad: {				    // npm.load(options, callback): this is the "options" given to npm.load()
                 loglevel: 'silent'	    // [default: {loglevel: 'silent'}]
@@ -237,7 +333,7 @@ export default class Application {
 
     public getCompletionsAtPosition(msg) {
 
-        const completions: ts.CompletionInfo = this.languageService.getCompletionsAtPosition('/virtual/' + this.name + msg.filePath, msg.position)
+        const completions: ts.CompletionInfo = this.languageService.getCompletionsAtPosition(msg.filePath, msg.position)
 
         let completionList = completions || {}
         completionList["entries"] = completionList["entries"] || []
@@ -272,6 +368,50 @@ export default class Application {
         socket.emit("log", "Compile finished: " + exitCode)
     }
 
+    public async build(socket): Promise<void> {
+        if (socket) socket.emit("log", "Build started...")
+
+        return new Promise<void>(function (resolve, reject) {
+
+            try {
+                var configFile = fsextra.readFileSync("/tmp/virtual/" + this.name + "/config/webpack.json") 
+                var configStr = configFile.toString().replace(/\"\.\//gi, '"' + '/tmp/virtual/' + this.name + '/')
+                var config = JSON.parse(configStr)
+                var compiler = webpack(config)
+            }
+            catch(err){
+                socket.emit("log", err.message)
+                resolve()
+                return
+            }
+
+            compiler.run(async function (err: Error, stats: webpack.Stats) {
+                
+                if (err) {
+                    socket.emit("log", err.message)
+                    resolve()
+                    return
+                }
+
+                socket.emit("log", stats.toString())
+                
+                if (stats.hasErrors()){
+                    socket.emit("log", "Build failed.")
+                    resolve()
+                    return
+                }
+                
+                var buffer = fsextra.readFileSync(config.output.path + '/' + config.output.filename)
+                await this.engine.mongo.uploadFileOrFolder(config.output.path.substr('/tmp/virtual/'.length) + '/' + config.output.filename, buffer) 
+                socket.emit("log", "Build success.")
+                resolve()
+                return
+
+            }.bind(this))
+             
+        }.bind(this))
+    }
+ 
     public loadFile(path: string): model.fileInfo {
         var result = new model.fileInfo()
         result.buffer = fsextra.readFileSync("/tmp/virtual/" + path) 
@@ -279,13 +419,75 @@ export default class Application {
         return result
     }
 
-    public WriteFile(fileName: string, data: string, writeByteOrderMark: boolean, onError?: (message: string) => void, sourceFiles?: ts.SourceFile[]): void{
-        this.engine.mongo.uploadFileOrFolder(this.name + "/" + fileName, data)
-        fsextra.writeFileSync("/tmp/virtual/" + this.name + "/" + fileName, data)
+    public loadFile2(path: string): any {
+        return fsextra.readFileSync(this.path + "/" + path) 
     }
 
-    public async build(): Promise<Object> {
-        return { message: "build" }
+    public isFileExists(path: string): boolean {
+        return fsextra.existsSync(this.path + "/" + path)
+    }
+
+    public async updateFileContent(_id: string, content: any, socket?: any) {
+        //await this.engine.db.collection(this.name + ".files").findOne({ _id: _id })
+        var file = this.findFileById(_id) 
+        file["root"] = this.name
+        file.metadata.version += 1  
+        var writestream = this.engine.gridfs.createWriteStream(file)
+        await Utils.toStream(content, writestream)
+        fsextra.writeFileSync(this.path + '/' + file.path, content, { flag: 'w' });
+        //await this.cacheFile2(file)
+    }
+
+    public async newFolder(msg: any, socket: any): Promise<any> {
+        var _id = uuid.v1()
+        var writestream = this.engine.gridfs.createWriteStream({
+            _id: _id,
+            filename: msg.filename,
+            content_type: "text/directory",
+            metadata: {
+                parent_id: msg.parent_id,
+                version: 0
+            },
+            root: this.name
+        })
+        await Utils.toStream("", writestream)
+        await this.createTree()
+        await this.cache2(socket)
+        return this.findFileById(_id)
+    }
+ 
+    public async newFile(msg: any, socket: any): Promise<any> {
+        var _id = uuid.v1()
+        var writestream = this.engine.gridfs.createWriteStream({
+            _id: _id,
+            filename: msg.filename,
+            content_type: Utils.getMime(msg.filename),
+            metadata: {
+                parent_id: msg.parent_id,
+                version: 0
+            },
+            root: this.name
+        })
+        await Utils.toStream("", writestream)
+        await this.createTree()
+        await this.cache2(socket)
+        return this.findFileById(_id)
+    }
+
+    public async WriteFile(fileName: string, data: string, writeByteOrderMark: boolean, onError?: (message: string) => void, sourceFiles?: ts.SourceFile[]): Promise<void>{
+        
+        //a DB-be felesleges kiirni, mert fs-bol megy a Static/getFile, adatvesztes nincs.
+        fsextra.writeFileSync(this.path + "/" + fileName, data, { flag : 'w' })
+        
+        //var file =  await this.engine.db.collection(this.name + ".files").findOne({ filename: fileName })
+        //var file = this.findFile(fileName)
+        //if (file){
+        //    await this.updateFileContent(file._id, data)
+        //    return
+        //}
+        //onError("Compile output file is not exists: " + fileName)
+        //this.engine.mongo.uploadFileOrFolder(this.name + "/" + fileName, data)
+        //fsextra.writeFileSync("/tmp/virtual/" + this.name + "/" + fileName, data, { flag : 'w' })
     }
 
    /* public async build2(): Promise<Object> {

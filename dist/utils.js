@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const request = require("request");
+const mime = require("mime");
 class Utils {
     static fromStream(stream) {
         return new Promise((resolve, reject) => {
@@ -145,6 +146,18 @@ class Utils {
         if (absoluteNixRegExp.test(path))
             return this.normalize(path + "/" + request);
         return this.normalize(path + "/" + request);
+    }
+    static getExt(path) {
+        var re = /(?:\.([^.]+))?$/;
+        return re.exec(path)[1];
+    }
+    static getMime(path) {
+        var ext = this.getExt(path);
+        if (ext == "ts")
+            return "application/typescript";
+        if (ext == "tsx")
+            return "application/typescript";
+        return mime.lookup(path);
     }
 }
 exports.default = Utils;

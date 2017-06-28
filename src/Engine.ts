@@ -27,13 +27,14 @@ export default class Engine {
     public cache: MemoryFileSystem
     public mongo: MongoFS
     public templateUrl: string
+    public gridfs: gridfs.Grid
 
     constructor() {
        
         this.info = {}
         this.applications = {}
         this.cache = new MemoryFileSystem()
-
+        
         this.templateUrl = "mongodb://guest:guest@ds056549.mlab.com:56549/tauren"
         //this.templateUrl = "mongodb://guest:guest@ds117189.mlab.com:17189/ide"
     }
@@ -44,6 +45,7 @@ export default class Engine {
 
         await this.initMongo()
         this.mongo = new MongoFS(this.db)
+        this.gridfs = gridfs(this.db, mongodb);
 
         await this.loadApplications()
         await this.updateStudio()
@@ -70,7 +72,6 @@ export default class Engine {
                 var app = this.applications[msg]
                 await app.cache(socket)
                 await app.npminstall()
-                await app.compile(socket)
                 var fs = await app.loadDocument("fs")
                 socket.emit("application", {
                     name: app.name,
@@ -78,30 +79,65 @@ export default class Engine {
                 }) 
             }.bind(this));
 
+            socket.on('openApplication2', async function(msg){
+                var app = this.applications[msg]
+                await app.open(socket)
+                socket.emit("application", {
+                    name: app.name,
+                    tree: app.filesRoot
+                }) 
+            }.bind(this));
+
+            socket.on('buildApplication', async function(msg){
+                var app = this.applications[msg.app]
+                await app.compile(socket)
+                await app.build(socket)
+            }.bind(this));
+
             socket.on('editFile', async function(msg){
-                //var app = this.applications[msg.app]
-                var fileInfo = await this.mongo.loadFile(msg.app + "/" + msg.path)
+                var app = this.applications[msg.app]
+                var buffer = await app.loadFile2(msg.path)
                 socket.emit("editFile", {
                     path: msg.path,
-                    contentType: fileInfo.contentType, 
-                    content: fileInfo.buffer.toString()
+                    content: buffer.toString()
                 })
             }.bind(this));
 
             socket.on('saveFile', async function(msg){
                 var content = new Buffer(msg.content, 'base64').toString()
-                await this.mongo.uploadFileOrFolder(msg.app + msg.path, content)
-                socket.emit("log", "saveFile finished: " + msg.app + msg.path)
+                //await this.mongo.uploadFileOrFolder(msg.app + msg.path, content)
+                //socket.emit("log", "saveFile finished: " + msg.app + msg.path)
+ 
+                var app = this.applications[msg.app]
+                await app.updateFileContent(msg._id, content, socket)
+                await app.compile(socket)
+            }.bind(this));
 
-                var targetApp = this.applications[msg.app]
-                await targetApp.cacheFile(msg.app + msg.path)
-                await targetApp.compile(socket)
+            socket.on('newFolder', async function(msg){
+                var app = this.applications[msg.app]
+                var file = await app.newFolder(msg, socket)
+                socket.emit("newFolder", {
+                    file: file
+                })
+            }.bind(this));
+
+            socket.on('newFile', async function(msg){
+                var app = this.applications[msg.app]
+                var file = await app.newFile(msg, socket)
+                socket.emit("newFile", {
+                    file: file
+                })
             }.bind(this));
 
             socket.on('getCompletionsAtPosition', function(msg){
                 var app = this.applications[msg.app]
-                msg = app.getCompletionsAtPosition(msg)
-                socket.emit('getCompletionsAtPosition', msg);
+                try{
+                    msg = app.getCompletionsAtPosition(msg)
+                    socket.emit('getCompletionsAtPosition', msg);
+                }
+                catch (e){
+                    socket.emit('log', e.message);
+                }
             }.bind(this));
 
         }.bind(this));

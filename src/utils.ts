@@ -3,6 +3,7 @@
 
 import * as stream from "stream";
 import * as request from "request";
+import * as mime from "mime"
 
 export default class Utils {
 
@@ -175,4 +176,15 @@ export default class Utils {
     return this.normalize(path + "/" + request);
   }
 
+  static getExt(path) {
+    var re = /(?:\.([^.]+))?$/
+    return re.exec(path)[1]
+  }
+
+  static getMime(path){
+    var ext = this.getExt(path)
+    if (ext == "ts") return "application/typescript"
+    if (ext == "tsx") return "application/typescript"
+    return mime.lookup(path)
+  }
 }

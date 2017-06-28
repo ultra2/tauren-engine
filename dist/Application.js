@@ -8,9 +8,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const uuid = require("node-uuid");
 const fsextra = require("fs-extra");
 const mime = require("mime");
 const JSZip = require("jszip");
+const webpack = require("webpack");
 const utils_1 = require("./utils");
 const model = require("./model");
 const ts = require("typescript");
@@ -22,6 +24,7 @@ class Application {
         this.paths = [];
         this.pathversions = {};
         this.name = application;
+        this.path = "/tmp/virtual/" + this.name;
         this.engine = engine;
     }
     create() {
@@ -40,15 +43,36 @@ class Application {
             this.loaded = false;
             this.controllers = {};
             try {
-                var fileInfo = yield this.engine.mongo.loadFile(this.name + "/controller.js");
-                var F = Function('app', fileInfo.buffer);
+                var fs = yield this.loadDocument("fs");
+                if (fs) {
+                    var fileInfo = yield this.engine.mongo.loadFile(this.name + "/controller.js");
+                    var F = Function('app', fileInfo.buffer);
+                    F(this);
+                    this.loaded = true;
+                    console.log("Application loaded: " + this.name);
+                    return;
+                }
+                yield this.createTree();
+                yield this.cache2();
+                yield this.npminstall();
+                var buffer = this.loadFile2("controller.js");
+                var F = Function('app', buffer);
                 F(this);
                 this.loaded = true;
                 console.log("Application loaded: " + this.name);
+                return;
             }
             catch (err) {
                 console.log("Application could not been loaded: " + this.name + ", " + err);
             }
+        });
+    }
+    open(socket) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this.createTree();
+            yield this.cache2(socket);
+            yield this.npminstall();
+            yield this.compile(socket);
         });
     }
     listDocuments() {
@@ -118,24 +142,27 @@ class Application {
             return { message: "Package installed successfully!" };
         });
     }
+    createTempDir() {
+        var virtualpath = "/tmp/virtual";
+        if (!fsextra.existsSync(virtualpath)) {
+            console.log("create " + virtualpath);
+            fsextra.mkdirSync(virtualpath);
+        }
+        else {
+            console.log("exists " + virtualpath);
+        }
+        var projectpath = "/tmp/virtual/" + this.name;
+        if (!fsextra.existsSync(projectpath)) {
+            console.log("create " + projectpath);
+            fsextra.mkdirSync(projectpath);
+        }
+        else {
+            console.log("exists " + projectpath);
+        }
+    }
     cache(socket) {
         return __awaiter(this, void 0, void 0, function* () {
-            var virtualpath = "/tmp/virtual";
-            if (!fsextra.existsSync(virtualpath)) {
-                console.log("create " + virtualpath);
-                fsextra.mkdirSync(virtualpath);
-            }
-            else {
-                console.log("exists " + virtualpath);
-            }
-            var projectpath = "/tmp/virtual/" + this.name;
-            if (!fsextra.existsSync(projectpath)) {
-                console.log("create " + projectpath);
-                fsextra.mkdirSync(projectpath);
-            }
-            else {
-                console.log("exists " + projectpath);
-            }
+            this.createTempDir();
             socket.emit("log", "Caching...");
             var fs = yield this.loadDocument("fs");
             this.paths = [];
@@ -154,37 +181,91 @@ class Application {
                 }
             }
             else {
-                if (!this.isCachable(path))
-                    return;
                 this.paths.push(path);
                 this.pathversions["/virtual" + path] = { version: 0 };
             }
         });
     }
-    getExt(path) {
-        var re = /(?:\.([^.]+))?$/;
-        return re.exec(path)[1];
-    }
-    isCachable(path) {
-        return true;
-    }
     cacheFile(path) {
         return __awaiter(this, void 0, void 0, function* () {
-            if (!this.isCachable(path))
-                return;
             var fileinfo = yield this.engine.mongo.loadFile(path);
             if (path[0] != '/')
                 path = '/' + path;
             this.engine.cache.writeFileSync(path, fileinfo.buffer);
-            fsextra.writeFileSync("/tmp/virtual/" + path, fileinfo.buffer);
+            fsextra.writeFileSync("/tmp/virtual/" + path, fileinfo.buffer, { flag: 'w' });
             this.pathversions["/virtual" + path].version++;
         });
     }
+    cache2(socket) {
+        return __awaiter(this, void 0, void 0, function* () {
+            this.createTempDir();
+            if (socket)
+                socket.emit("log", "Caching...");
+            yield Promise.all(this.filesArray.map((file) => __awaiter(this, void 0, void 0, function* () { yield this.cacheFile2(file); })));
+            if (socket)
+                socket.emit("log", "Caching finished. Files/Folders count: " + this.filesArray.length);
+        });
+    }
+    cacheFile2(file) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (file.contentType == "text/directory") {
+                fsextra.mkdirpSync(this.path + '/' + file.path);
+                return;
+            }
+            var buffer = yield this.loadFileById(file._id);
+            fsextra.writeFileSync(this.path + '/' + file.path, buffer, { flag: 'w' });
+        });
+    }
+    findFile(path) {
+        var files = this.filesArray.filter(file => file.path === path);
+        if (files.length == 0) {
+            return undefined;
+        }
+        return files[0];
+    }
+    findFileById(_id) {
+        var files = this.filesArray.filter(file => file._id === _id);
+        if (files.length == 0) {
+            return undefined;
+        }
+        return files[0];
+    }
+    loadFileById(id) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var readstream = this.engine.gridfs.createReadStream({
+                _id: id,
+                root: this.name
+            });
+            try {
+                return yield utils_1.default.fromStream(readstream);
+            }
+            catch (err) {
+                throw Error(err.message);
+            }
+        });
+    }
+    createTree() {
+        return __awaiter(this, void 0, void 0, function* () {
+            this.filesArray = yield this.engine.db.collection(this.name + ".files").find().toArray();
+            this.filesRoot = this.filesArray.filter(file => file.metadata.parent_id === null)[0];
+            this.createTreeChildren(this.filesRoot, '');
+        });
+    }
+    createTreeChildren(node, path) {
+        node.path = path;
+        if (node.contentType == "text/directory") {
+            node.children = this.filesArray.filter(file => file.metadata.parent_id === node._id);
+            for (var i in node.children) {
+                var child = node.children[i];
+                var childPath = (node.path) ? node.path + '/' + child.filename : child.filename;
+                this.createTreeChildren(child, childPath);
+            }
+        }
+    }
     npminstall() {
         return __awaiter(this, void 0, void 0, function* () {
-            var projectpath = "/tmp/virtual/" + this.name;
             var options = {
-                path: projectpath,
+                path: this.path,
                 forceInstall: false,
                 npmLoad: {
                     loglevel: 'silent'
@@ -212,7 +293,7 @@ class Application {
         });
     }
     getCompletionsAtPosition(msg) {
-        const completions = this.languageService.getCompletionsAtPosition('/virtual/' + this.name + msg.filePath, msg.position);
+        const completions = this.languageService.getCompletionsAtPosition(msg.filePath, msg.position);
         let completionList = completions || {};
         completionList["entries"] = completionList["entries"] || [];
         let maxSuggestions = 1000;
@@ -236,19 +317,108 @@ class Application {
             socket.emit("log", "Compile finished: " + exitCode);
         });
     }
+    build(socket) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (socket)
+                socket.emit("log", "Build started...");
+            return new Promise(function (resolve, reject) {
+                try {
+                    var configFile = fsextra.readFileSync("/tmp/virtual/" + this.name + "/config/webpack.json");
+                    var configStr = configFile.toString().replace(/\"\.\//gi, '"' + '/tmp/virtual/' + this.name + '/');
+                    var config = JSON.parse(configStr);
+                    var compiler = webpack(config);
+                }
+                catch (err) {
+                    socket.emit("log", err.message);
+                    resolve();
+                    return;
+                }
+                compiler.run(function (err, stats) {
+                    return __awaiter(this, void 0, void 0, function* () {
+                        if (err) {
+                            socket.emit("log", err.message);
+                            resolve();
+                            return;
+                        }
+                        socket.emit("log", stats.toString());
+                        if (stats.hasErrors()) {
+                            socket.emit("log", "Build failed.");
+                            resolve();
+                            return;
+                        }
+                        var buffer = fsextra.readFileSync(config.output.path + '/' + config.output.filename);
+                        yield this.engine.mongo.uploadFileOrFolder(config.output.path.substr('/tmp/virtual/'.length) + '/' + config.output.filename, buffer);
+                        socket.emit("log", "Build success.");
+                        resolve();
+                        return;
+                    });
+                }.bind(this));
+            }.bind(this));
+        });
+    }
     loadFile(path) {
         var result = new model.fileInfo();
         result.buffer = fsextra.readFileSync("/tmp/virtual/" + path);
         result.contentType = mime.lookup(path);
         return result;
     }
-    WriteFile(fileName, data, writeByteOrderMark, onError, sourceFiles) {
-        this.engine.mongo.uploadFileOrFolder(this.name + "/" + fileName, data);
-        fsextra.writeFileSync("/tmp/virtual/" + this.name + "/" + fileName, data);
+    loadFile2(path) {
+        return fsextra.readFileSync(this.path + "/" + path);
     }
-    build() {
+    isFileExists(path) {
+        return fsextra.existsSync(this.path + "/" + path);
+    }
+    updateFileContent(_id, content, socket) {
         return __awaiter(this, void 0, void 0, function* () {
-            return { message: "build" };
+            var file = this.findFileById(_id);
+            file["root"] = this.name;
+            file.metadata.version += 1;
+            var writestream = this.engine.gridfs.createWriteStream(file);
+            yield utils_1.default.toStream(content, writestream);
+            fsextra.writeFileSync(this.path + '/' + file.path, content, { flag: 'w' });
+        });
+    }
+    newFolder(msg, socket) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _id = uuid.v1();
+            var writestream = this.engine.gridfs.createWriteStream({
+                _id: _id,
+                filename: msg.filename,
+                content_type: "text/directory",
+                metadata: {
+                    parent_id: msg.parent_id,
+                    version: 0
+                },
+                root: this.name
+            });
+            yield utils_1.default.toStream("", writestream);
+            yield this.createTree();
+            yield this.cache2(socket);
+            return this.findFileById(_id);
+        });
+    }
+    newFile(msg, socket) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _id = uuid.v1();
+            var writestream = this.engine.gridfs.createWriteStream({
+                _id: _id,
+                filename: msg.filename,
+                content_type: utils_1.default.getMime(msg.filename),
+                metadata: {
+                    parent_id: msg.parent_id,
+                    version: 0
+                },
+                root: this.name
+            });
+            yield utils_1.default.toStream("", writestream);
+            yield this.createTree();
+            yield this.cache2(socket);
+            return this.findFileById(_id);
+        });
+    }
+    WriteFile(fileName, data, writeByteOrderMark, onError, sourceFiles) {
+        return __awaiter(this, void 0, void 0, function* () {
+            fsextra.writeFileSync(this.path + "/" + fileName, data, { flag: 'w' });
         });
     }
 }

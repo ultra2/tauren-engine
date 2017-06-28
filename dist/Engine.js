@@ -32,6 +32,7 @@ class Engine {
             yield this.initApp();
             yield this.initMongo();
             this.mongo = new MongoFS_1.default(this.db);
+            this.gridfs = gridfs(this.db, mongodb);
             yield this.loadApplications();
             yield this.updateStudio();
         });
@@ -53,7 +54,6 @@ class Engine {
                         var app = this.applications[msg];
                         yield app.cache(socket);
                         yield app.npminstall();
-                        yield app.compile(socket);
                         var fs = yield app.loadDocument("fs");
                         socket.emit("application", {
                             name: app.name,
@@ -61,30 +61,68 @@ class Engine {
                         });
                     });
                 }.bind(this));
+                socket.on('openApplication2', function (msg) {
+                    return __awaiter(this, void 0, void 0, function* () {
+                        var app = this.applications[msg];
+                        yield app.open(socket);
+                        socket.emit("application", {
+                            name: app.name,
+                            tree: app.filesRoot
+                        });
+                    });
+                }.bind(this));
+                socket.on('buildApplication', function (msg) {
+                    return __awaiter(this, void 0, void 0, function* () {
+                        var app = this.applications[msg.app];
+                        yield app.compile(socket);
+                        yield app.build(socket);
+                    });
+                }.bind(this));
                 socket.on('editFile', function (msg) {
                     return __awaiter(this, void 0, void 0, function* () {
-                        var fileInfo = yield this.mongo.loadFile(msg.app + "/" + msg.path);
+                        var app = this.applications[msg.app];
+                        var buffer = yield app.loadFile2(msg.path);
                         socket.emit("editFile", {
                             path: msg.path,
-                            contentType: fileInfo.contentType,
-                            content: fileInfo.buffer.toString()
+                            content: buffer.toString()
                         });
                     });
                 }.bind(this));
                 socket.on('saveFile', function (msg) {
                     return __awaiter(this, void 0, void 0, function* () {
                         var content = new Buffer(msg.content, 'base64').toString();
-                        yield this.mongo.uploadFileOrFolder(msg.app + msg.path, content);
-                        socket.emit("log", "saveFile finished: " + msg.app + msg.path);
-                        var targetApp = this.applications[msg.app];
-                        yield targetApp.cacheFile(msg.app + msg.path);
-                        yield targetApp.compile(socket);
+                        var app = this.applications[msg.app];
+                        yield app.updateFileContent(msg._id, content, socket);
+                        yield app.compile(socket);
+                    });
+                }.bind(this));
+                socket.on('newFolder', function (msg) {
+                    return __awaiter(this, void 0, void 0, function* () {
+                        var app = this.applications[msg.app];
+                        var file = yield app.newFolder(msg, socket);
+                        socket.emit("newFolder", {
+                            file: file
+                        });
+                    });
+                }.bind(this));
+                socket.on('newFile', function (msg) {
+                    return __awaiter(this, void 0, void 0, function* () {
+                        var app = this.applications[msg.app];
+                        var file = yield app.newFile(msg, socket);
+                        socket.emit("newFile", {
+                            file: file
+                        });
                     });
                 }.bind(this));
                 socket.on('getCompletionsAtPosition', function (msg) {
                     var app = this.applications[msg.app];
-                    msg = app.getCompletionsAtPosition(msg);
-                    socket.emit('getCompletionsAtPosition', msg);
+                    try {
+                        msg = app.getCompletionsAtPosition(msg);
+                        socket.emit('getCompletionsAtPosition', msg);
+                    }
+                    catch (e) {
+                        socket.emit('log', e.message);
+                    }
                 }.bind(this));
             }.bind(this));
             this.app.use(bodyParser.json({ type: 'application/json', limit: '5mb' }));

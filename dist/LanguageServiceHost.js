@@ -7,10 +7,17 @@ class LanguageServiceHost {
         this.app = _app;
     }
     getScriptFileNames() {
-        return ['/virtual/' + this.app.name + "/main.tsx"];
+        return ["main.tsx"];
     }
     getScriptVersion(fileName) {
-        return this.app.pathversions[fileName] && this.app.pathversions[fileName].version.toString();
+        var file = this.app.findFile(fileName);
+        if (!file)
+            return "0";
+        if (!file.metadata)
+            return "0";
+        if (!file.metadata.version)
+            return "0";
+        return file.metadata.version.toString();
     }
     getScriptSnapshot(fileName) {
         console.log("getScriptSnapshot", fileName);
@@ -18,28 +25,15 @@ class LanguageServiceHost {
             console.log("fs: loaded: " + fileName);
             return ts.ScriptSnapshot.fromString(fsextra.readFileSync(fileName).toString());
         }
-        if (fileName.substring(0, 13) == "/node_modules") {
-            if (!fsextra.existsSync("/tmp/virtual/" + this.app.name + "/" + fileName)) {
-                console.log("fs: not exists: " + "/tmp/virtual/" + this.app.name + "/" + fileName);
-                return undefined;
-            }
-            console.log("fs: loaded: " + "/tmp/virtual/" + this.app.name + "/" + fileName);
-            return ts.ScriptSnapshot.fromString(fsextra.readFileSync("/tmp/virtual/" + this.app.name + "/" + fileName).toString());
+        if (!this.app.isFileExists(fileName)) {
+            console.log("fs: not exists: " + fileName);
+            return undefined;
         }
-        if (fileName.substring(0, 8) == "/virtual") {
-            fileName = fileName.substring(8);
-            if (!this.app.engine.cache.existsSync(fileName)) {
-                console.log("cache: not exists: " + fileName);
-                return undefined;
-            }
-            console.log("cache: loaded: " + fileName);
-            return ts.ScriptSnapshot.fromString(this.app.engine.cache.readFileSync(fileName).toString());
-        }
-        console.log("not exists");
-        return undefined;
+        console.log("fs: loaded: " + fileName);
+        return ts.ScriptSnapshot.fromString(this.app.loadFile2(fileName).toString());
     }
     getCurrentDirectory() {
-        return "/tmp/virtual/" + this.app.name;
+        return "";
     }
     getCompilationSettings() {
         return {
