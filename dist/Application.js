@@ -143,22 +143,8 @@ class Application {
         });
     }
     createTempDir() {
-        var virtualpath = "/tmp/virtual";
-        if (!fsextra.existsSync(virtualpath)) {
-            console.log("create " + virtualpath);
-            fsextra.mkdirSync(virtualpath);
-        }
-        else {
-            console.log("exists " + virtualpath);
-        }
         var projectpath = "/tmp/virtual/" + this.name;
-        if (!fsextra.existsSync(projectpath)) {
-            console.log("create " + projectpath);
-            fsextra.mkdirSync(projectpath);
-        }
-        else {
-            console.log("exists " + projectpath);
-        }
+        fsextra.ensureDirSync(projectpath);
     }
     cache(socket) {
         return __awaiter(this, void 0, void 0, function* () {

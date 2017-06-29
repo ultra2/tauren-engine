@@ -161,23 +161,26 @@ export default class Application {
     }
 
     public createTempDir(){
-        var virtualpath = "/tmp/virtual"
-        if (!fsextra.existsSync(virtualpath)){
-            console.log("create " + virtualpath);
-            fsextra.mkdirSync(virtualpath)
-        }
-        else{
-            console.log("exists " + virtualpath);
-        }
-
         var projectpath = "/tmp/virtual/" + this.name
-        if (!fsextra.existsSync(projectpath)){
-            console.log("create " + projectpath);
-            fsextra.mkdirSync(projectpath)
-        }
-        else{
-            console.log("exists " + projectpath);
-        }
+        fsextra.ensureDirSync(projectpath)
+
+        //var virtualpath = "/tmp/virtual"
+        //if (!fsextra.existsSync(virtualpath)){
+        //    console.log("create " + virtualpath);
+        //    fsextra.mkdirSync(virtualpath)
+        //}
+        //else{
+        //    console.log("exists " + virtualpath);
+        //}
+
+        //var projectpath = "/tmp/virtual/" + this.name
+        //if (!fsextra.existsSync(projectpath)){
+        //    console.log("create " + projectpath);
+        //    fsextra.mkdirSync(projectpath)
+        //}
+        //else{
+        //    console.log("exists " + projectpath);
+        //}
 
         //console.log('empty ' + projectpath)
         //fsextra.emptyDirSync(projectpath)

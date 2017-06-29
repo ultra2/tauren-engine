@@ -8,6 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const fsextra = require("fs-extra");
 const http = require("http");
 const express = require("express");
 const bodyParser = require("body-parser");
@@ -19,6 +20,8 @@ const MongoFS_1 = require("./MongoFS");
 const utils_1 = require("./utils");
 const MemoryFileSystem = require("memory-fs");
 const socketIo = require("socket.io");
+var Git = require("nodegit");
+const path = require('path');
 class Engine {
     constructor() {
         this.info = {};
@@ -43,87 +46,174 @@ class Engine {
             this.server = http.createServer(this.app);
             this.io = socketIo(this.server);
             this.io.on('connection', function (socket) {
-                console.log('socket connection');
-                socket.on('disconnect', function () {
-                    console.log('socket disconnect');
-                }.bind(this));
-                socket.emit("info", this.info);
-                socket.emit("applications", Object.keys(this.applications));
-                socket.on('openApplication', function (msg) {
-                    return __awaiter(this, void 0, void 0, function* () {
-                        var app = this.applications[msg];
-                        yield app.cache(socket);
-                        yield app.npminstall();
-                        var fs = yield app.loadDocument("fs");
-                        socket.emit("application", {
-                            name: app.name,
-                            attachments: fs["_attachments"]
-                        });
-                    });
-                }.bind(this));
-                socket.on('openApplication2', function (msg) {
-                    return __awaiter(this, void 0, void 0, function* () {
-                        var app = this.applications[msg];
-                        yield app.open(socket);
-                        socket.emit("application", {
-                            name: app.name,
-                            tree: app.filesRoot
-                        });
-                    });
-                }.bind(this));
-                socket.on('buildApplication', function (msg) {
-                    return __awaiter(this, void 0, void 0, function* () {
-                        var app = this.applications[msg.app];
-                        yield app.compile(socket);
-                        yield app.build(socket);
-                    });
-                }.bind(this));
-                socket.on('editFile', function (msg) {
-                    return __awaiter(this, void 0, void 0, function* () {
-                        var app = this.applications[msg.app];
-                        var buffer = yield app.loadFile2(msg.path);
-                        socket.emit("editFile", {
-                            path: msg.path,
-                            content: buffer.toString()
-                        });
-                    });
-                }.bind(this));
-                socket.on('saveFile', function (msg) {
-                    return __awaiter(this, void 0, void 0, function* () {
-                        var content = new Buffer(msg.content, 'base64').toString();
-                        var app = this.applications[msg.app];
-                        yield app.updateFileContent(msg._id, content, socket);
-                        yield app.compile(socket);
-                    });
-                }.bind(this));
-                socket.on('newFolder', function (msg) {
-                    return __awaiter(this, void 0, void 0, function* () {
-                        var app = this.applications[msg.app];
-                        var file = yield app.newFolder(msg, socket);
-                        socket.emit("newFolder", {
-                            file: file
-                        });
-                    });
-                }.bind(this));
-                socket.on('newFile', function (msg) {
-                    return __awaiter(this, void 0, void 0, function* () {
-                        var app = this.applications[msg.app];
-                        var file = yield app.newFile(msg, socket);
-                        socket.emit("newFile", {
-                            file: file
-                        });
-                    });
-                }.bind(this));
-                socket.on('getCompletionsAtPosition', function (msg) {
-                    var app = this.applications[msg.app];
-                    try {
-                        msg = app.getCompletionsAtPosition(msg);
-                        socket.emit('getCompletionsAtPosition', msg);
+                return __awaiter(this, void 0, void 0, function* () {
+                    console.log('socket connection');
+                    socket.on('disconnect', function () {
+                        console.log('socket disconnect');
+                    }.bind(this));
+                    socket.emit("info", this.info);
+                    socket.emit("applications", Object.keys(this.applications));
+                    if (socket.handshake.query.app) {
+                        var currapp = socket.handshake.query.app;
+                        var settings = yield this.db.collection(currapp).find().toArray();
+                        var setting = settings[0];
+                        socket.emit("settings", setting);
                     }
-                    catch (e) {
-                        socket.emit('log', e.message);
-                    }
-                }.bind(this));
+                    socket.on('openApplication', function (msg) {
+                        return __awaiter(this, void 0, void 0, function* () {
+                            var app = this.applications[msg];
+                            yield app.cache(socket);
+                            yield app.npminstall();
+                            var fs = yield app.loadDocument("fs");
+                            socket.emit("application", {
+                                name: app.name,
+                                attachments: fs["_attachments"]
+                            });
+                        });
+                    }.bind(this));
+                    socket.on('openApplication2', function (msg) {
+                        return __awaiter(this, void 0, void 0, function* () {
+                            var app = this.applications[msg];
+                            yield app.open(socket);
+                            socket.emit("application", {
+                                name: app.name,
+                                tree: app.filesRoot
+                            });
+                        });
+                    }.bind(this));
+                    socket.on('openApplication3', function (msg) {
+                        return __awaiter(this, void 0, void 0, function* () {
+                            try {
+                                var currapp = socket.handshake.query.app;
+                                var settings = yield this.db.collection(currapp).find().toArray();
+                                var setting = settings[0];
+                                var project = null;
+                                setting.projects.forEach(element => {
+                                    if (element.name == msg) {
+                                        project = element;
+                                    }
+                                });
+                                var repopath = "/tmp/repos";
+                                var projectpath = repopath + "/" + project.name;
+                                var repo = null;
+                                if (!fsextra.existsSync(projectpath)) {
+                                    repo = yield Git.Clone(project.repository.url, projectpath);
+                                    console.log("cloned: " + projectpath);
+                                }
+                                else {
+                                    repo = yield Git.Repository.open(projectpath);
+                                    var a = yield repo.fetchAll();
+                                    var b = yield repo.mergeBranches("master", "origin/master");
+                                    console.log("updated: " + projectpath);
+                                }
+                                var root = createNode('');
+                                root["collapse"] = false;
+                                function createNode(relpath) {
+                                    var node = {};
+                                    node["filename"] = (relpath == '') ? project.name : path.basename(relpath);
+                                    node["collapse"] = true;
+                                    node["path"] = relpath;
+                                    var stat = fsextra.lstatSync(projectpath + '/' + relpath);
+                                    if (stat.isFile())
+                                        (node["contentType"] = utils_1.default.getMime(relpath));
+                                    if (stat.isDirectory()) {
+                                        node["contentType"] = "text/directory";
+                                        node["children"] = [];
+                                        var children = fsextra.readdirSync(projectpath + '/' + relpath);
+                                        children = children.sort();
+                                        for (var i in children) {
+                                            var child = children[i];
+                                            if (child[0] == '.')
+                                                continue;
+                                            var childPath = (relpath) ? relpath + '/' + child : child;
+                                            var childNode = createNode(childPath);
+                                            node["children"].push(childNode);
+                                        }
+                                    }
+                                    return node;
+                                }
+                                socket.emit("application", {
+                                    name: msg,
+                                    tree: root
+                                });
+                            }
+                            catch (err) {
+                                console.log(err);
+                            }
+                        });
+                    }.bind(this));
+                    socket.on('buildApplication', function (msg) {
+                        return __awaiter(this, void 0, void 0, function* () {
+                            var app = this.applications[msg.app];
+                            yield app.compile(socket);
+                            yield app.build(socket);
+                        });
+                    }.bind(this));
+                    socket.on('editFile', function (msg) {
+                        return __awaiter(this, void 0, void 0, function* () {
+                            var app = this.applications[msg.app];
+                            var buffer = yield app.loadFile2(msg.path);
+                            socket.emit("editFile", {
+                                path: msg.path,
+                                content: buffer.toString()
+                            });
+                        });
+                    }.bind(this));
+                    socket.on('editFile3', function (msg) {
+                        return __awaiter(this, void 0, void 0, function* () {
+                            var projectpath = "/tmp/repos/" + msg.app;
+                            var buffer = fsextra.readFileSync(projectpath + "/" + msg.path);
+                            socket.emit("editFile", {
+                                path: msg.path,
+                                content: buffer.toString()
+                            });
+                        });
+                    }.bind(this));
+                    socket.on('saveFile', function (msg) {
+                        return __awaiter(this, void 0, void 0, function* () {
+                            var content = new Buffer(msg.content, 'base64').toString();
+                            var app = this.applications[msg.app];
+                            yield app.updateFileContent(msg._id, content, socket);
+                            yield app.compile(socket);
+                        });
+                    }.bind(this));
+                    socket.on('saveFile3', function (msg) {
+                        return __awaiter(this, void 0, void 0, function* () {
+                            var content = new Buffer(msg.content, 'base64').toString();
+                            var projectpath = "/tmp/repos/" + msg.app;
+                            fsextra.writeFileSync(projectpath + "/" + msg.path, content, { flag: 'w' });
+                            socket.emit("log", "saveFile finished: " + msg.app + msg.path);
+                        });
+                    }.bind(this));
+                    socket.on('newFolder', function (msg) {
+                        return __awaiter(this, void 0, void 0, function* () {
+                            var app = this.applications[msg.app];
+                            var file = yield app.newFolder(msg, socket);
+                            socket.emit("newFolder", {
+                                file: file
+                            });
+                        });
+                    }.bind(this));
+                    socket.on('newFile', function (msg) {
+                        return __awaiter(this, void 0, void 0, function* () {
+                            var app = this.applications[msg.app];
+                            var file = yield app.newFile(msg, socket);
+                            socket.emit("newFile", {
+                                file: file
+                            });
+                        });
+                    }.bind(this));
+                    socket.on('getCompletionsAtPosition', function (msg) {
+                        var app = this.applications[msg.app];
+                        try {
+                            msg = app.getCompletionsAtPosition(msg);
+                            socket.emit('getCompletionsAtPosition', msg);
+                        }
+                        catch (e) {
+                            socket.emit('log', e.message);
+                        }
+                    }.bind(this));
+                });
             }.bind(this));
             this.app.use(bodyParser.json({ type: 'application/json', limit: '5mb' }));
             this.app.use(bodyParser.raw({ type: 'application/vnd.custom-type' }));

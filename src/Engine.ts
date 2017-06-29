@@ -1,6 +1,7 @@
 /// <reference path="_all.d.ts" />
 "use strict";
 
+import * as fsextra from 'fs-extra'
 import http = require('http')
 import * as express from "express"
 import * as bodyParser from "body-parser"
@@ -13,7 +14,8 @@ import MongoFS from './MongoFS'
 import Utils from './utils'
 import MemoryFileSystem = require('memory-fs') //You need to import export = style libraries with import require. This is because of the ES6 spec.
 import socketIo = require('socket.io')
-
+var Git = require("nodegit");
+const path = require('path');
 
 export default class Engine {
 
@@ -58,9 +60,16 @@ export default class Engine {
         this.server = http.createServer(this.app)
         this.io = socketIo(this.server)
 
-        this.io.on('connection', function(socket) {
+        this.io.on('connection', async function(socket) {
             console.log('socket connection')
             
+
+           // socket.use((socket, next) => {
+           //     let clientId = socket.handshake.headers['x-clientid'];
+           //     debugger
+           //     return next();
+           // });
+
             socket.on('disconnect', function(){
                 console.log('socket disconnect');
             }.bind(this));
@@ -68,6 +77,13 @@ export default class Engine {
             socket.emit("info", this.info)  
             socket.emit("applications", Object.keys(this.applications))  
 
+            if (socket.handshake.query.app) {
+                var currapp = socket.handshake.query.app
+                var settings = await this.db.collection(currapp).find().toArray()
+                var setting = settings[0]
+                socket.emit("settings", setting)
+            }
+        
             socket.on('openApplication', async function(msg){
                 var app = this.applications[msg]
                 await app.cache(socket)
@@ -88,6 +104,78 @@ export default class Engine {
                 }) 
             }.bind(this));
 
+            socket.on('openApplication3', async function(msg){
+                
+                try {
+                    var currapp = socket.handshake.query.app
+                    var settings = await this.db.collection(currapp).find().toArray()
+                    var setting = settings[0]
+
+                    var project = null
+                    setting.projects.forEach(element => {
+                        if (element.name == msg){
+                            project = element
+                        }
+                    }); 
+                    
+                    var repopath = "/tmp/repos"
+                    var projectpath = repopath + "/" + project.name
+                    var repo = null
+
+                    if (!fsextra.existsSync(projectpath)){
+                        repo = await Git.Clone(project.repository.url, projectpath)
+                        console.log("cloned: " + projectpath); 
+                    }
+                    else{
+                        repo = await Git.Repository.open(projectpath) 
+                        var a = await repo.fetchAll()
+                        var b = await repo.mergeBranches("master", "origin/master")
+                        console.log("updated: " + projectpath); 
+                    }
+                
+                    var root = createNode('')
+                    root["collapse"] = false
+
+                    function createNode(relpath){
+                        var node = {}
+                        node["filename"] = (relpath == '') ? project.name : path.basename(relpath)
+                        node["collapse"] = true
+                        node["path"] = relpath
+
+                        var stat = fsextra.lstatSync(projectpath + '/' + relpath)
+                        if (stat.isFile()) (
+                            node["contentType"] = Utils.getMime(relpath)
+                        )
+
+                        if (stat.isDirectory()){
+                            node["contentType"] = "text/directory"
+                            node["children"] = []
+                            var children = fsextra.readdirSync(projectpath + '/' + relpath)
+                            children = children.sort()
+                            for (var i in children) { 
+                                var child = children[i]
+
+                                if (child[0] == '.') continue
+                                var childPath = (relpath) ? relpath + '/' + child : child
+                                var childNode = createNode(childPath)
+                                node["children"].push(childNode)
+                            }
+                        }
+                        
+                        return node
+                    }
+
+                    socket.emit("application", {
+                        name: msg,
+                        tree: root
+                    }) 
+
+                }
+                catch(err){
+                    console.log(err); 
+                }
+            }.bind(this));
+
             socket.on('buildApplication', async function(msg){
                 var app = this.applications[msg.app]
                 await app.compile(socket)
@@ -102,6 +190,15 @@ export default class Engine {
                     content: buffer.toString()
                 })
             }.bind(this));
+ 
+            socket.on('editFile3', async function(msg){
+                var projectpath = "/tmp/repos/" + msg.app
+                var buffer = fsextra.readFileSync(projectpath + "/" + msg.path) 
+                socket.emit("editFile", {
+                    path: msg.path,
+                    content: buffer.toString()
+                })
+            }.bind(this));
 
             socket.on('saveFile', async function(msg){
                 var content = new Buffer(msg.content, 'base64').toString()
@@ -111,6 +208,13 @@ export default class Engine {
                 var app = this.applications[msg.app]
                 await app.updateFileContent(msg._id, content, socket)
                 await app.compile(socket)
+            }.bind(this));
+
+            socket.on('saveFile3', async function(msg){
+                var content = new Buffer(msg.content, 'base64').toString()
+                var projectpath = "/tmp/repos/" + msg.app
+                fsextra.writeFileSync(projectpath + "/" + msg.path, content, { flag: 'w' });
+                socket.emit("log", "saveFile finished: " + msg.app + msg.path)
             }.bind(this));
 
             socket.on('newFolder', async function(msg){

@@ -24,6 +24,7 @@
     "mime-types": "^2.1.12",
     "mongodb": "^2.2.10",
     "node-uuid": "^1.4.7",
+    "nodegit": "^0.18.3",
     "npmi": "^2.0.1",
     "request": "^2.79.0",
     "socket.io": "^2.0.2",
