@@ -25,6 +25,7 @@
     "mongodb": "^2.2.10",
     "node-uuid": "^1.4.7",
     "nodegit": "^0.18.3",
+    "nodegit-kit": "^0.16.0",
     "npmi": "^2.0.1",
     "request": "^2.79.0",
     "socket.io": "^2.0.2",

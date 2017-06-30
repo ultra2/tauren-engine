@@ -1,6 +1,7 @@
 /// <reference path="_all.d.ts" />
 "use strict";
 
+import * as path from 'path'
 import * as fsextra from 'fs-extra'
 import http = require('http')
 import * as express from "express"
@@ -15,7 +16,7 @@ import Utils from './utils'
 import MemoryFileSystem = require('memory-fs') //You need to import export = style libraries with import require. This is because of the ES6 spec.
 import socketIo = require('socket.io')
 var Git = require("nodegit");
-const path = require('path');
+var gitkit = require('nodegit-kit');
 
 export default class Engine {
 
@@ -77,12 +78,12 @@ export default class Engine {
             socket.emit("info", this.info)  
             socket.emit("applications", Object.keys(this.applications))  
 
-            if (socket.handshake.query.app) {
-                var currapp = socket.handshake.query.app
-                var settings = await this.db.collection(currapp).find().toArray()
-                var setting = settings[0]
-                socket.emit("settings", setting)
-            }
+            //if (socket.handshake.query.app) {
+            //    var currapp = socket.handshake.query.app
+            //    var settings = await this.db.collection(currapp).find().toArray()
+            //    var setting = settings[0]
+            //    socket.emit("settings", setting)
+            //}
         
             socket.on('openApplication', async function(msg){
                 var app = this.applications[msg]
@@ -107,30 +108,24 @@ export default class Engine {
             socket.on('openApplication3', async function(msg){
                 
                 try {
-                    var currapp = socket.handshake.query.app
-                    var settings = await this.db.collection(currapp).find().toArray()
-                    var setting = settings[0]
+                    //var currapp = socket.handshake.query.app
+                    //var settings = await this.db.collection(currapp).find().toArray()
+                    //var setting = settings[0]
 
-                    var project = null
-                    setting.projects.forEach(element => {
-                        if (element.name == msg){
-                            project = element
-                        }
-                    }); 
+                    //var project = null
+                    //setting.projects.forEach(element => {
+                    //    if (element.name == msg){
+                    //        project = element
+                    //    }
+                    //}); 
                     
-                    var repopath = "/tmp/repos"
-                    var projectpath = repopath + "/" + project.name
-                    var repo = null
+                    var repopath = this.getApplicationRepositoryPath(msg)
 
-                    if (!fsextra.existsSync(projectpath)){
-                        repo = await Git.Clone(project.repository.url, projectpath)
-                        console.log("cloned: " + projectpath); 
+                    if (!fsextra.existsSync(repopath)){
+                        await this.cloneApplication(msg)
                     }
                     else{
-                        repo = await Git.Repository.open(projectpath) 
-                        var a = await repo.fetchAll()
-                        var b = await repo.mergeBranches("master", "origin/master")
-                        console.log("updated: " + projectpath); 
+                        await this.updateApplication(msg)
                     }
                 
                     var root = createNode('')
@@ -138,11 +133,11 @@ export default class Engine {
 
                     function createNode(relpath){
                         var node = {}
-                        node["filename"] = (relpath == '') ? project.name : path.basename(relpath)
+                        node["filename"] = (relpath == '') ? msg : path.basename(relpath)
                         node["collapse"] = true
                         node["path"] = relpath
 
-                        var stat = fsextra.lstatSync(projectpath + '/' + relpath)
+                        var stat = fsextra.lstatSync(repopath + '/' + relpath)
                         if (stat.isFile()) (
                             node["contentType"] = Utils.getMime(relpath)
                         )
@@ -150,7 +145,7 @@ export default class Engine {
                         if (stat.isDirectory()){
                             node["contentType"] = "text/directory"
                             node["children"] = []
-                            var children = fsextra.readdirSync(projectpath + '/' + relpath)
+                            var children = fsextra.readdirSync(repopath + '/' + relpath)
                             children = children.sort()
                             for (var i in children) { 
                                 var child = children[i]
@@ -215,6 +210,7 @@ export default class Engine {
                 var projectpath = "/tmp/repos/" + msg.app
                 fsextra.writeFileSync(projectpath + "/" + msg.path, content, { flag: 'w' });
                 socket.emit("log", "saveFile finished: " + msg.app + msg.path)
+                await this.pushApplication(msg.app)
             }.bind(this));
 
             socket.on('newFolder', async function(msg){
@@ -511,5 +507,79 @@ export default class Engine {
         await this.db.collection(destAppName + ".chunks").insertMany(chunks)
 
         await this.loadApplication(destAppName)
+    }
+
+    private getApplicationRepositoryPath(app: string): string {
+       return "/tmp/repos/" + app
+    }
+
+    private async cloneApplication(app: string): Promise<any> {
+        var registry = (await this.db.collection(app).find().toArray())[0]
+        var repopath = this.getApplicationRepositoryPath(app)
+        var repo = await Git.Clone(registry.repository.url, repopath)
+        var remote = await Git.Remote.create(repo, "origin", registry.repository.url)
+        console.log("cloned: " + repopath)
+        return repo
+    }
+
+    private async updateApplication(app: string): Promise<any> {
+        var repopath = this.getApplicationRepositoryPath(app)
+        var repo = await Git.Repository.open(repopath) 
+        await repo.fetchAll()
+        await repo.mergeBranches("master", "origin/master")
+        console.log("updated: " + repopath)
+        return repo
+    }
+
+    private async pushApplication(app: string) {
+        try{
+            var repopath = this.getApplicationRepositoryPath(app)
+            var repo = await Git.Repository.open(repopath) 
+    debugger
+            await gitkit.config.set(repo, {
+                'user.name': 'John Doe',
+                'user.email': 'johndoe@example.com'
+            })
+
+            var diff = await gitkit.diff(repo)
+            console.log(diff)
+
+            await gitkit.commit(repo, {
+                'message': 'commit message'
+            });
+
+            var log = await gitkit.log(repo)
+            console.log(log)
+
+            //signature
+            var signature = Git.Signature.create("Foo bar", "foo@bar.com", 123456789, 60); //var signature = Signature.default(repo);
+
+            //index
+            //var index = await repo.refreshIndex()
+            //var index = await repo.index()
+            //var a = await index.removeAll()
+            //var a2 =await index.addAll()
+            //var a3 =await index.write()
+            //var oid = await index.writeTree()
+
+            //commit
+            //await repo.createCommit("HEAD", signature, signature, "initial commit", oid, [])
+             
+            //push
+            var TOKEN = "xy1WHR7QXt-8WZJehY9B";
+            var remote = await Git.Remote.lookup(repo, "origin")
+            await remote.push(["refs/heads/master:refs/heads/master"], {
+                callbacks: {
+                    certificateCheck: function() { return 1; },
+                    credentials: function(url, userName) {
+                        //return Git.Cred.userpassPlaintextNew("ivan.zsolt100", "Leonardo19770206Z");
+                        return Git.Cred.userpassPlaintextNew(TOKEN, "x-oauth-basic");
+                    }
+                }
+            })
+        }
+        catch(err){
+            console.log(err)
+        }
     }
 }
