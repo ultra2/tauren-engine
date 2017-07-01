@@ -17,11 +17,19 @@ export default class LanguageServiceHost implements ts.LanguageServiceHost {
   }
 
   getScriptVersion(fileName: string): string {
-    var file = this.app.findFile(fileName)
-    if (!file) return "0"
-    if (!file.metadata) return "0"
-    if (!file.metadata.version) return "0"
-    return file.metadata.version.toString()
+    //var file = this.app.findFile(fileName)
+    //if (!file) return "0"
+    //if (!file.metadata) return "0"
+    //if (!file.metadata.version) return "0"
+    //return file.metadata.version.toString()
+
+    console.log("getScriptVersion", fileName)
+
+    if (fileName.substring(fileName.length-36) == "node_modules/typescript/lib/lib.d.ts"){
+      return ""
+    }
+
+    return this.app.getScriptVersion(fileName)
   }
 
   getScriptSnapshot(fileName: string): ts.IScriptSnapshot | undefined {
@@ -38,7 +46,7 @@ export default class LanguageServiceHost implements ts.LanguageServiceHost {
     }
  
     console.log("fs: loaded: " + fileName)
-    return ts.ScriptSnapshot.fromString(this.app.loadFile2(fileName).toString())
+    return ts.ScriptSnapshot.fromString(this.app.loadFile3(fileName).buffer.toString())
 
     //if (fileName.substring(0,13) == "/node_modules") {
     //  if (!fsextra.existsSync("/tmp/virtual/" + this.app.name + "/" + fileName)) {

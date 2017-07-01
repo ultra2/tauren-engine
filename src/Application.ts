@@ -14,6 +14,7 @@ import * as model from './model'
 import Engine from './Engine'
 import * as ts from "typescript"
 import LanguageServiceHost from "./LanguageServiceHost"
+var gitkit = require('nodegit-kit');
 var npmi = require('npmi');
 
 export default class Application {
@@ -33,7 +34,7 @@ export default class Application {
 
     constructor(application: string, engine: Engine) {
         this.name = application
-        this.path = "/tmp/virtual/" + this.name
+        this.path = "/tmp/repos/" + this.name
         this.engine = engine
     }
 
@@ -63,10 +64,10 @@ export default class Application {
                 return
             }
             //new method
-            await this.createTree()
-            await this.cache2()
-            await this.npminstall()
-            var buffer = this.loadFile2("controller.js")
+            //await this.createTree()
+            //await this.cache2()
+            //await this.npminstall()
+            var buffer = await this.dbLoadFileByName("controller.js")
             var F = Function('app', buffer)
             F(this)
             this.loaded = true
@@ -231,7 +232,7 @@ export default class Application {
             fsextra.mkdirpSync(this.path + '/' + file.path)
             return
         }
-        var buffer = await this.loadFileById(file._id)
+        var buffer = await this.dbLoadFileById(file._id)
         fsextra.writeFileSync(this.path + '/' + file.path, buffer, { flag : 'w' })
     }
 
@@ -270,9 +271,23 @@ export default class Application {
     }
 
 
-    public async loadFileById(id: string): Promise<any> {
+    public async dbLoadFileById(id: string): Promise<any> {
         var readstream = this.engine.gridfs.createReadStream({
             _id: id,
+            root: this.name
+        })
+
+        try {
+            return await Utils.fromStream(readstream)
+        }
+        catch (err) {
+            throw Error(err.message)
+        }
+    }
+
+    public async dbLoadFileByName(filename: string): Promise<any> {
+        var readstream = this.engine.gridfs.createReadStream({
+            filename: filename,
             root: this.name
         })
 
@@ -337,6 +352,14 @@ export default class Application {
     public getCompletionsAtPosition(msg) {
 
         const completions: ts.CompletionInfo = this.languageService.getCompletionsAtPosition(msg.filePath, msg.position)
+
+        //TODO: duplikacios hiba javitasa
+        //for (var i=0; i<completions.entries.length; i++){
+        //    var c = completions.entries[i]
+        //    if (c.name == "Navigator"){
+        //        debugger
+        //    }
+        //}
 
         let completionList = completions || {}
         completionList["entries"] = completionList["entries"] || []
@@ -421,16 +444,43 @@ export default class Application {
         result.contentType = mime.lookup(path)
         return result
     }
+ 
+    public async loadFile2(path: string): Promise<any> {
+        path = path.replace("studio42/", "")
+        var result = new model.fileInfo()
+        result.buffer = fsextra.readFileSync(this.path + '/' + path) 
+        result.contentType = mime.lookup(path)
+        return result
 
-    public loadFile2(path: string): any {
-        return fsextra.readFileSync(this.path + "/" + path) 
+        //path = path.replace("studio42/dist/", "");
+        //return this.dbLoadFileByName(path)
+        //return fsextra.readFileSync(this.path + "/" + path) 
+
+        //path = path.replace("studio42/dist/", "")
+        //var result = new model.fileInfo()
+        //result.buffer = await this.dbLoadFileByName(path) 
+        //result.contentType = mime.lookup(path)
+        //return result
+    }
+ 
+    public loadFile3(path: string): any {
+        path = path.replace("studio42/", "")
+        var result = new model.fileInfo()
+        result.buffer = fsextra.readFileSync(this.path + '/' + path) 
+        result.contentType = mime.lookup(path)
+        return result
+    }
+
+    public getScriptVersion(fileName: string): string{
+        var stat = fsextra.lstatSync(this.path + "/" + fileName)
+        return stat.mtime.toString()
     }
 
     public isFileExists(path: string): boolean {
         return fsextra.existsSync(this.path + "/" + path)
     }
 
-    public async updateFileContent(_id: string, content: any, socket?: any) {
+    public async dbUpdateFileContentById(_id: string, content: any, socket?: any) {
         //await this.engine.db.collection(this.name + ".files").findOne({ _id: _id })
         var file = this.findFileById(_id) 
         file["root"] = this.name
@@ -441,7 +491,7 @@ export default class Application {
         //await this.cacheFile2(file)
     }
 
-    public async newFolder(msg: any, socket: any): Promise<any> {
+    public async dbCreateFolder(msg: any, socket: any): Promise<any> {
         var _id = uuid.v1()
         var writestream = this.engine.gridfs.createWriteStream({
             _id: _id,
@@ -454,12 +504,10 @@ export default class Application {
             root: this.name
         })
         await Utils.toStream("", writestream)
-        await this.createTree()
-        await this.cache2(socket)
-        return this.findFileById(_id)
+        return _id
     }
  
-    public async newFile(msg: any, socket: any): Promise<any> {
+    public async dbCreateFile(msg: any, socket: any): Promise<any> {
         var _id = uuid.v1()
         var writestream = this.engine.gridfs.createWriteStream({
             _id: _id,
@@ -472,9 +520,7 @@ export default class Application {
             root: this.name
         })
         await Utils.toStream("", writestream)
-        await this.createTree()
-        await this.cache2(socket)
-        return this.findFileById(_id)
+        return _id
     }
 
     public async WriteFile(fileName: string, data: string, writeByteOrderMark: boolean, onError?: (message: string) => void, sourceFiles?: ts.SourceFile[]): Promise<void>{

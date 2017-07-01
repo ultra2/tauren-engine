@@ -17,6 +17,7 @@ const utils_1 = require("./utils");
 const model = require("./model");
 const ts = require("typescript");
 const LanguageServiceHost_1 = require("./LanguageServiceHost");
+var gitkit = require('nodegit-kit');
 var npmi = require('npmi');
 class Application {
     constructor(application, engine) {
@@ -24,7 +25,7 @@ class Application {
         this.paths = [];
         this.pathversions = {};
         this.name = application;
-        this.path = "/tmp/virtual/" + this.name;
+        this.path = "/tmp/repos/" + this.name;
         this.engine = engine;
     }
     create() {
@@ -52,10 +53,7 @@ class Application {
                     console.log("Application loaded: " + this.name);
                     return;
                 }
-                yield this.createTree();
-                yield this.cache2();
-                yield this.npminstall();
-                var buffer = this.loadFile2("controller.js");
+                var buffer = yield this.dbLoadFileByName("controller.js");
                 var F = Function('app', buffer);
                 F(this);
                 this.loaded = true;
@@ -198,7 +196,7 @@ class Application {
                 fsextra.mkdirpSync(this.path + '/' + file.path);
                 return;
             }
-            var buffer = yield this.loadFileById(file._id);
+            var buffer = yield this.dbLoadFileById(file._id);
             fsextra.writeFileSync(this.path + '/' + file.path, buffer, { flag: 'w' });
         });
     }
@@ -216,10 +214,24 @@ class Application {
         }
         return files[0];
     }
-    loadFileById(id) {
+    dbLoadFileById(id) {
         return __awaiter(this, void 0, void 0, function* () {
             var readstream = this.engine.gridfs.createReadStream({
                 _id: id,
+                root: this.name
+            });
+            try {
+                return yield utils_1.default.fromStream(readstream);
+            }
+            catch (err) {
+                throw Error(err.message);
+            }
+        });
+    }
+    dbLoadFileByName(filename) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var readstream = this.engine.gridfs.createReadStream({
+                filename: filename,
                 root: this.name
             });
             try {
@@ -349,12 +361,29 @@ class Application {
         return result;
     }
     loadFile2(path) {
-        return fsextra.readFileSync(this.path + "/" + path);
+        return __awaiter(this, void 0, void 0, function* () {
+            path = path.replace("studio42/", "");
+            var result = new model.fileInfo();
+            result.buffer = fsextra.readFileSync(this.path + '/' + path);
+            result.contentType = mime.lookup(path);
+            return result;
+        });
+    }
+    loadFile3(path) {
+        path = path.replace("studio42/", "");
+        var result = new model.fileInfo();
+        result.buffer = fsextra.readFileSync(this.path + '/' + path);
+        result.contentType = mime.lookup(path);
+        return result;
+    }
+    getScriptVersion(fileName) {
+        var stat = fsextra.lstatSync(this.path + "/" + fileName);
+        return stat.mtime.toString();
     }
     isFileExists(path) {
         return fsextra.existsSync(this.path + "/" + path);
     }
-    updateFileContent(_id, content, socket) {
+    dbUpdateFileContentById(_id, content, socket) {
         return __awaiter(this, void 0, void 0, function* () {
             var file = this.findFileById(_id);
             file["root"] = this.name;
@@ -364,7 +393,7 @@ class Application {
             fsextra.writeFileSync(this.path + '/' + file.path, content, { flag: 'w' });
         });
     }
-    newFolder(msg, socket) {
+    dbCreateFolder(msg, socket) {
         return __awaiter(this, void 0, void 0, function* () {
             var _id = uuid.v1();
             var writestream = this.engine.gridfs.createWriteStream({
@@ -378,12 +407,10 @@ class Application {
                 root: this.name
             });
             yield utils_1.default.toStream("", writestream);
-            yield this.createTree();
-            yield this.cache2(socket);
-            return this.findFileById(_id);
+            return _id;
         });
     }
-    newFile(msg, socket) {
+    dbCreateFile(msg, socket) {
         return __awaiter(this, void 0, void 0, function* () {
             var _id = uuid.v1();
             var writestream = this.engine.gridfs.createWriteStream({
@@ -397,9 +424,7 @@ class Application {
                 root: this.name
             });
             yield utils_1.default.toStream("", writestream);
-            yield this.createTree();
-            yield this.cache2(socket);
-            return this.findFileById(_id);
+            return _id;
         });
     }
     WriteFile(fileName, data, writeByteOrderMark, onError, sourceFiles) {

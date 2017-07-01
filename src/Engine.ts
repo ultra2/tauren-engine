@@ -151,6 +151,8 @@ export default class Engine {
                                 var child = children[i]
 
                                 if (child[0] == '.') continue
+                                if (child == 'node_modules') continue
+
                                 var childPath = (relpath) ? relpath + '/' + child : child
                                 var childNode = createNode(childPath)
                                 node["children"].push(childNode)
@@ -509,15 +511,52 @@ export default class Engine {
         await this.loadApplication(destAppName)
     }
 
-    private getApplicationRepositoryPath(app: string): string {
-       return "/tmp/repos/" + app
+    public getApplicationRepositoryPath(app: string): string {
+        return "/tmp/repos/" + app
+    }
+
+    private async getApplicationRepositorySsh(app: string): Promise<string> {
+        var registry = (await this.db.collection(app).find().toArray())[0]
+        return registry.repository.ssh
+    }
+
+    private credentials(url, userName) {
+        console.log("Try authenticate: " + userName + "...")
+        //if (debug++ > 10) throw "Authentication agent not loaded.";
+        //this.Cred.sshKeyMemoryNew(userName, rsapub, rsa).then(function(cred) {
+        //  return cred
+        //});
+
+        try {
+            var rsapub = fsextra.readFileSync("./id_rsa.pub").toString()
+            var rsa = fsextra.readFileSync("./id_rsa").toString()
+            return Git.Cred.sshKeyMemoryNew(userName, rsapub, rsa, "")
+        }
+        catch(err) { 
+            console.log("Authenticate error: " + err)
+        }
+
+        //WORKS!!!
+        //return this.Cred.sshKeyNew(userName, "./id_rsa.pub", "./id_rsa", "")
+
+    }
+
+    private certificateCheck() {
+        return 1;
+    }
+
+    private getRemoteCallbacks(): any {
+        return {
+            //certificateCheck: this.certificateCheck,
+            credentials: this.credentials
+        }
     }
 
     private async cloneApplication(app: string): Promise<any> {
-        var registry = (await this.db.collection(app).find().toArray())[0]
+        var repossh = this.getApplicationRepositorySsh(app)
         var repopath = this.getApplicationRepositoryPath(app)
-        var repo = await Git.Clone(registry.repository.url, repopath)
-        var remote = await Git.Remote.create(repo, "origin", registry.repository.url)
+        var cloneOptions = { fetchOpts: { callbacks: this.getRemoteCallbacks() } }
+        var repo = await Git.Clone(repossh, repopath, cloneOptions)
         console.log("cloned: " + repopath)
         return repo
     }
@@ -525,17 +564,17 @@ export default class Engine {
     private async updateApplication(app: string): Promise<any> {
         var repopath = this.getApplicationRepositoryPath(app)
         var repo = await Git.Repository.open(repopath) 
-        await repo.fetchAll()
+        await repo.fetchAll({ callbacks: this.getRemoteCallbacks() })
         await repo.mergeBranches("master", "origin/master")
         console.log("updated: " + repopath)
         return repo
     }
-
+ 
     private async pushApplication(app: string) {
         try{
             var repopath = this.getApplicationRepositoryPath(app)
             var repo = await Git.Repository.open(repopath) 
-    debugger
+    
             await gitkit.config.set(repo, {
                 'user.name': 'John Doe',
                 'user.email': 'johndoe@example.com'
@@ -565,18 +604,16 @@ export default class Engine {
             //commit
             //await repo.createCommit("HEAD", signature, signature, "initial commit", oid, [])
              
-            //push
-            var TOKEN = "xy1WHR7QXt-8WZJehY9B";
+            //remote
             var remote = await Git.Remote.lookup(repo, "origin")
-            await remote.push(["refs/heads/master:refs/heads/master"], {
-                callbacks: {
-                    certificateCheck: function() { return 1; },
-                    credentials: function(url, userName) {
-                        //return Git.Cred.userpassPlaintextNew("ivan.zsolt100", "Leonardo19770206Z");
-                        return Git.Cred.userpassPlaintextNew(TOKEN, "x-oauth-basic");
-                    }
-                }
-            })
+            if (remote == null){
+                var repourl = this.getApplicationRepositorySsh(app)
+                remote = await Git.Remote.create(repo, "origin", repourl)
+            }
+
+            //push
+            await remote.push(["refs/heads/master:refs/heads/master"], { callbacks: this.getRemoteCallbacks() })
+            console.log("pushed: " + repopath);
         }
         catch(err){
             console.log(err)

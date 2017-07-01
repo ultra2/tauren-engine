@@ -105,6 +105,8 @@ class Engine {
                                             var child = children[i];
                                             if (child[0] == '.')
                                                 continue;
+                                            if (child == 'node_modules')
+                                                continue;
                                             var childPath = (relpath) ? relpath + '/' + child : child;
                                             var childNode = createNode(childPath);
                                             node["children"].push(childNode);
@@ -449,12 +451,37 @@ class Engine {
     getApplicationRepositoryPath(app) {
         return "/tmp/repos/" + app;
     }
-    cloneApplication(app) {
+    getApplicationRepositorySsh(app) {
         return __awaiter(this, void 0, void 0, function* () {
             var registry = (yield this.db.collection(app).find().toArray())[0];
+            return registry.repository.ssh;
+        });
+    }
+    credentials(url, userName) {
+        console.log("Try authenticate: " + userName + "...");
+        try {
+            var rsapub = fsextra.readFileSync("./id_rsa.pub").toString();
+            var rsa = fsextra.readFileSync("./id_rsa").toString();
+            return Git.Cred.sshKeyMemoryNew(userName, rsapub, rsa, "");
+        }
+        catch (err) {
+            console.log("Authenticate error: " + err);
+        }
+    }
+    certificateCheck() {
+        return 1;
+    }
+    getRemoteCallbacks() {
+        return {
+            credentials: this.credentials
+        };
+    }
+    cloneApplication(app) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var repossh = this.getApplicationRepositorySsh(app);
             var repopath = this.getApplicationRepositoryPath(app);
-            var repo = yield Git.Clone(registry.repository.url, repopath);
-            var remote = yield Git.Remote.create(repo, "origin", registry.repository.url);
+            var cloneOptions = { fetchOpts: { callbacks: this.getRemoteCallbacks() } };
+            var repo = yield Git.Clone(repossh, repopath, cloneOptions);
             console.log("cloned: " + repopath);
             return repo;
         });
@@ -463,7 +490,7 @@ class Engine {
         return __awaiter(this, void 0, void 0, function* () {
             var repopath = this.getApplicationRepositoryPath(app);
             var repo = yield Git.Repository.open(repopath);
-            yield repo.fetchAll();
+            yield repo.fetchAll({ callbacks: this.getRemoteCallbacks() });
             yield repo.mergeBranches("master", "origin/master");
             console.log("updated: " + repopath);
             return repo;
@@ -474,7 +501,6 @@ class Engine {
             try {
                 var repopath = this.getApplicationRepositoryPath(app);
                 var repo = yield Git.Repository.open(repopath);
-                debugger;
                 yield gitkit.config.set(repo, {
                     'user.name': 'John Doe',
                     'user.email': 'johndoe@example.com'
@@ -487,16 +513,13 @@ class Engine {
                 var log = yield gitkit.log(repo);
                 console.log(log);
                 var signature = Git.Signature.create("Foo bar", "foo@bar.com", 123456789, 60);
-                var TOKEN = "xy1WHR7QXt-8WZJehY9B";
                 var remote = yield Git.Remote.lookup(repo, "origin");
-                yield remote.push(["refs/heads/master:refs/heads/master"], {
-                    callbacks: {
-                        certificateCheck: function () { return 1; },
-                        credentials: function (url, userName) {
-                            return Git.Cred.userpassPlaintextNew(TOKEN, "x-oauth-basic");
-                        }
-                    }
-                });
+                if (remote == null) {
+                    var repourl = this.getApplicationRepositorySsh(app);
+                    remote = yield Git.Remote.create(repo, "origin", repourl);
+                }
+                yield remote.push(["refs/heads/master:refs/heads/master"], { callbacks: this.getRemoteCallbacks() });
+                console.log("pushed: " + repopath);
             }
             catch (err) {
                 console.log(err);

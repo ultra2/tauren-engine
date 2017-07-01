@@ -10,14 +10,11 @@ class LanguageServiceHost {
         return ["main.tsx"];
     }
     getScriptVersion(fileName) {
-        var file = this.app.findFile(fileName);
-        if (!file)
-            return "0";
-        if (!file.metadata)
-            return "0";
-        if (!file.metadata.version)
-            return "0";
-        return file.metadata.version.toString();
+        console.log("getScriptVersion", fileName);
+        if (fileName.substring(fileName.length - 36) == "node_modules/typescript/lib/lib.d.ts") {
+            return "";
+        }
+        return this.app.getScriptVersion(fileName);
     }
     getScriptSnapshot(fileName) {
         console.log("getScriptSnapshot", fileName);
@@ -30,7 +27,7 @@ class LanguageServiceHost {
             return undefined;
         }
         console.log("fs: loaded: " + fileName);
-        return ts.ScriptSnapshot.fromString(this.app.loadFile2(fileName).toString());
+        return ts.ScriptSnapshot.fromString(this.app.loadFile3(fileName).buffer.toString());
     }
     getCurrentDirectory() {
         return "";
