@@ -8,6 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const path = require("path");
 const uuid = require("node-uuid");
 const fsextra = require("fs-extra");
 const mime = require("mime");
@@ -311,8 +312,10 @@ class Application {
                 let message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
                 socket.emit("log", `${diagnostic.file.fileName} (${line + 1},${character + 1}): ${message}`);
             });
-            let exitCode = emitResult.emitSkipped ? "failed" : "success";
+            let success = !emitResult.emitSkipped;
+            let exitCode = success ? "success" : "failed";
             socket.emit("log", "Compile finished: " + exitCode);
+            return success;
         });
     }
     build(socket) {
@@ -393,22 +396,39 @@ class Application {
             fsextra.writeFileSync(this.path + '/' + file.path, content, { flag: 'w' });
         });
     }
-    dbCreateFolder(msg, socket) {
-        return __awaiter(this, void 0, void 0, function* () {
-            var _id = uuid.v1();
-            var writestream = this.engine.gridfs.createWriteStream({
-                _id: _id,
-                filename: msg.filename,
-                content_type: "text/directory",
-                metadata: {
-                    parent_id: msg.parent_id,
-                    version: 0
-                },
-                root: this.name
-            });
-            yield utils_1.default.toStream("", writestream);
-            return _id;
-        });
+    newFolder(msg, socket) {
+        fsextra.mkdirpSync(this.path + '/' + msg.path);
+        return this.createNode(msg.path);
+    }
+    newFile(msg, socket) {
+        fsextra.writeFileSync(this.path + '/' + msg.path, "", { flag: 'w' });
+        return this.createNode(msg.path);
+    }
+    createNode(relpath) {
+        var node = {};
+        node["filename"] = (relpath == '') ? this.name : path.basename(relpath);
+        node["collapse"] = true;
+        node["path"] = relpath;
+        var stat = fsextra.lstatSync(this.path + '/' + relpath);
+        if (stat.isFile())
+            (node["contentType"] = utils_1.default.getMime(relpath));
+        if (stat.isDirectory()) {
+            node["contentType"] = "text/directory";
+            node["children"] = [];
+            var children = fsextra.readdirSync(this.path + '/' + relpath);
+            children = children.sort();
+            for (var i in children) {
+                var child = children[i];
+                if (child[0] == '.')
+                    continue;
+                if (child == 'node_modules')
+                    continue;
+                var childPath = (relpath) ? relpath + '/' + child : child;
+                var childNode = this.createNode(childPath);
+                node["children"].push(childNode);
+            }
+        }
+        return node;
     }
     dbCreateFile(msg, socket) {
         return __awaiter(this, void 0, void 0, function* () {

@@ -1,6 +1,7 @@
 /// <reference path="_all.d.ts" />
 "use strict";
 
+import * as path from 'path'
 import * as uuid from "node-uuid"
 import * as fsextra from 'fs-extra'
 import * as mongodb from "mongodb"
@@ -371,7 +372,7 @@ export default class Application {
         return completionList
     }
 
-    public async compile(socket): Promise<void> {
+    public async compile(socket): Promise<any> {
         
         if (socket) socket.emit("log", "Compile started...")
 
@@ -389,9 +390,12 @@ export default class Application {
             socket.emit("log", `${diagnostic.file.fileName} (${line + 1},${character + 1}): ${message}`);
         });
  
-        let exitCode = emitResult.emitSkipped ? "failed" : "success"
+        let success = !emitResult.emitSkipped
 
+        let exitCode = success ? "success" : "failed"
         socket.emit("log", "Compile finished: " + exitCode)
+
+        return success
     }
 
     public async build(socket): Promise<void> {
@@ -491,21 +495,62 @@ export default class Application {
         //await this.cacheFile2(file)
     }
 
-    public async dbCreateFolder(msg: any, socket: any): Promise<any> {
-        var _id = uuid.v1()
-        var writestream = this.engine.gridfs.createWriteStream({
-            _id: _id,
-            filename: msg.filename,
-            content_type: "text/directory",
-            metadata: {
-                parent_id: msg.parent_id,
-                version: 0
-            },
-            root: this.name
-        })
-        await Utils.toStream("", writestream)
-        return _id
+    public newFolder(msg: any, socket: any): any {
+        fsextra.mkdirpSync(this.path + '/' + msg.path)
+        return this.createNode(msg.path)
     }
+
+    public newFile(msg: any, socket: any): any {
+        fsextra.writeFileSync(this.path + '/' + msg.path, "", { flag: 'w' });
+        return this.createNode(msg.path)
+    }
+
+    private createNode(relpath): any {
+        var node = {}
+        node["filename"] = (relpath == '') ? this.name : path.basename(relpath)
+        node["collapse"] = true
+        node["path"] = relpath
+
+        var stat = fsextra.lstatSync(this.path + '/' + relpath)
+        if (stat.isFile()) (
+            node["contentType"] = Utils.getMime(relpath)
+        )
+
+        if (stat.isDirectory()){
+            node["contentType"] = "text/directory"
+            node["children"] = []
+            var children = fsextra.readdirSync(this.path + '/' + relpath)
+            children = children.sort()
+            for (var i in children) { 
+                var child = children[i]
+
+                if (child[0] == '.') continue
+                if (child == 'node_modules') continue
+
+                var childPath = (relpath) ? relpath + '/' + child : child
+                var childNode = this.createNode(childPath)
+                node["children"].push(childNode)
+            }
+        }
+        
+        return node
+    }
+
+    //public async dbCreateFolder(msg: any, socket: any): Promise<any> {
+    //    var _id = uuid.v1()
+    //    var writestream = this.engine.gridfs.createWriteStream({
+    //        _id: _id,
+    //        filename: msg.filename,
+    //        content_type: "text/directory",
+    //        metadata: {
+    //            parent_id: msg.parent_id,
+    //            version: 0
+    //        },
+    //        root: this.name
+    //    })
+    //    await Utils.toStream("", writestream)
+    //    return _id
+    //}
  
     public async dbCreateFile(msg: any, socket: any): Promise<any> {
         var _id = uuid.v1()

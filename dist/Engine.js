@@ -8,7 +8,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const path = require("path");
 const fsextra = require("fs-extra");
 const http = require("http");
 const express = require("express");
@@ -79,43 +78,19 @@ class Engine {
                     socket.on('openApplication3', function (msg) {
                         return __awaiter(this, void 0, void 0, function* () {
                             try {
-                                var repopath = this.getApplicationRepositoryPath(msg);
+                                var appname = msg;
+                                var app = this.applications[msg];
+                                var repopath = this.getApplicationRepositoryPath(appname);
                                 if (!fsextra.existsSync(repopath)) {
-                                    yield this.cloneApplication(msg);
+                                    yield this.cloneApplication(appname);
                                 }
                                 else {
-                                    yield this.updateApplication(msg);
+                                    yield this.updateApplication(appname);
                                 }
-                                var root = createNode('');
+                                var root = app.createNode('');
                                 root["collapse"] = false;
-                                function createNode(relpath) {
-                                    var node = {};
-                                    node["filename"] = (relpath == '') ? msg : path.basename(relpath);
-                                    node["collapse"] = true;
-                                    node["path"] = relpath;
-                                    var stat = fsextra.lstatSync(repopath + '/' + relpath);
-                                    if (stat.isFile())
-                                        (node["contentType"] = utils_1.default.getMime(relpath));
-                                    if (stat.isDirectory()) {
-                                        node["contentType"] = "text/directory";
-                                        node["children"] = [];
-                                        var children = fsextra.readdirSync(repopath + '/' + relpath);
-                                        children = children.sort();
-                                        for (var i in children) {
-                                            var child = children[i];
-                                            if (child[0] == '.')
-                                                continue;
-                                            if (child == 'node_modules')
-                                                continue;
-                                            var childPath = (relpath) ? relpath + '/' + child : child;
-                                            var childNode = createNode(childPath);
-                                            node["children"].push(childNode);
-                                        }
-                                    }
-                                    return node;
-                                }
                                 socket.emit("application", {
-                                    name: msg,
+                                    name: appname,
                                     tree: root
                                 });
                             }
@@ -164,14 +139,18 @@ class Engine {
                             var content = new Buffer(msg.content, 'base64').toString();
                             var projectpath = "/tmp/repos/" + msg.app;
                             fsextra.writeFileSync(projectpath + "/" + msg.path, content, { flag: 'w' });
-                            socket.emit("log", "saveFile finished: " + msg.app + msg.path);
-                            yield this.pushApplication(msg.app);
+                            socket.emit("log", "saved: " + msg.path);
+                            var app = this.applications[msg.app];
+                            var success = yield app.compile(socket);
+                            if (!success)
+                                return;
+                            yield this.pushApplication(socket, msg.app);
                         });
                     }.bind(this));
                     socket.on('newFolder', function (msg) {
                         return __awaiter(this, void 0, void 0, function* () {
                             var app = this.applications[msg.app];
-                            var file = yield app.newFolder(msg, socket);
+                            var file = app.newFolder(msg, socket);
                             socket.emit("newFolder", {
                                 file: file
                             });
@@ -180,7 +159,7 @@ class Engine {
                     socket.on('newFile', function (msg) {
                         return __awaiter(this, void 0, void 0, function* () {
                             var app = this.applications[msg.app];
-                            var file = yield app.newFile(msg, socket);
+                            var file = app.newFile(msg, socket);
                             socket.emit("newFile", {
                                 file: file
                             });
@@ -496,7 +475,7 @@ class Engine {
             return repo;
         });
     }
-    pushApplication(app) {
+    pushApplication(socket, app) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 var repopath = this.getApplicationRepositoryPath(app);
@@ -520,6 +499,7 @@ class Engine {
                 }
                 yield remote.push(["refs/heads/master:refs/heads/master"], { callbacks: this.getRemoteCallbacks() });
                 console.log("pushed: " + repopath);
+                socket.emit("log", "pushed: " + repopath);
             }
             catch (err) {
                 console.log(err);
