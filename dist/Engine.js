@@ -56,95 +56,22 @@ class Engine {
                     socket.on('openApplication', function (msg) {
                         return __awaiter(this, void 0, void 0, function* () {
                             var app = this.applications[msg];
-                            yield app.cache(socket);
-                            yield app.npminstall();
-                            var fs = yield app.loadDocument("fs");
+                            var repo = yield app.open(socket);
+                            var root = app.createNode('');
                             socket.emit("application", {
                                 name: app.name,
-                                attachments: fs["_attachments"]
+                                tree: root
                             });
                         });
                     }.bind(this));
-                    socket.on('openApplication2', function (msg) {
+                    socket.on('publishApplication', function (msg) {
                         return __awaiter(this, void 0, void 0, function* () {
-                            var app = this.applications[msg];
-                            yield app.open(socket);
-                            socket.emit("application", {
-                                name: app.name,
-                                tree: app.filesRoot
-                            });
-                        });
-                    }.bind(this));
-                    socket.on('openApplication3', function (msg) {
-                        return __awaiter(this, void 0, void 0, function* () {
-                            try {
-                                var appname = msg;
-                                var app = this.applications[msg];
-                                var repopath = this.getApplicationRepositoryPath(appname);
-                                if (!fsextra.existsSync(repopath)) {
-                                    yield this.cloneApplication(appname);
-                                }
-                                else {
-                                    yield this.updateApplication(appname);
-                                }
-                                var root = app.createNode('');
-                                root["collapse"] = false;
-                                socket.emit("application", {
-                                    name: appname,
-                                    tree: root
-                                });
-                            }
-                            catch (err) {
-                                console.log(err);
-                            }
-                        });
-                    }.bind(this));
-                    socket.on('buildApplication', function (msg) {
-                        return __awaiter(this, void 0, void 0, function* () {
-                            var app = this.applications[msg.app];
-                            yield app.compile(socket);
-                            yield app.build(socket);
-                        });
-                    }.bind(this));
-                    socket.on('editFile', function (msg) {
-                        return __awaiter(this, void 0, void 0, function* () {
-                            var app = this.applications[msg.app];
-                            var buffer = yield app.loadFile2(msg.path);
-                            socket.emit("editFile", {
-                                path: msg.path,
-                                content: buffer.toString()
-                            });
-                        });
-                    }.bind(this));
-                    socket.on('editFile3', function (msg) {
-                        return __awaiter(this, void 0, void 0, function* () {
-                            var projectpath = "/tmp/repos/" + msg.app;
-                            var buffer = fsextra.readFileSync(projectpath + "/" + msg.path);
-                            socket.emit("editFile", {
-                                path: msg.path,
-                                content: buffer.toString()
-                            });
-                        });
-                    }.bind(this));
-                    socket.on('saveFile', function (msg) {
-                        return __awaiter(this, void 0, void 0, function* () {
-                            var content = new Buffer(msg.content, 'base64').toString();
-                            var app = this.applications[msg.app];
-                            yield app.updateFileContent(msg._id, content, socket);
-                            yield app.compile(socket);
-                        });
-                    }.bind(this));
-                    socket.on('saveFile3', function (msg) {
-                        return __awaiter(this, void 0, void 0, function* () {
-                            var content = new Buffer(msg.content, 'base64').toString();
-                            var projectpath = "/tmp/repos/" + msg.app;
-                            fsextra.writeFileSync(projectpath + "/" + msg.path, content, { flag: 'w' });
-                            socket.emit("log", "saved: " + msg.path);
                             var app = this.applications[msg.app];
                             var success = yield app.compile(socket);
                             if (!success)
                                 return;
-                            yield this.pushApplication(socket, msg.app);
+                            yield app.push(socket);
+                            yield app.publish(socket);
                         });
                     }.bind(this));
                     socket.on('newFolder', function (msg) {
@@ -163,6 +90,28 @@ class Engine {
                             socket.emit("newFile", {
                                 file: file
                             });
+                        });
+                    }.bind(this));
+                    socket.on('editFile', function (msg) {
+                        return __awaiter(this, void 0, void 0, function* () {
+                            var app = this.applications[msg.app];
+                            var buffer = fsextra.readFileSync(app.path + "/" + msg.path);
+                            socket.emit("editFile", {
+                                path: msg.path,
+                                content: buffer.toString()
+                            });
+                        });
+                    }.bind(this));
+                    socket.on('saveFile', function (msg) {
+                        return __awaiter(this, void 0, void 0, function* () {
+                            var app = this.applications[msg.app];
+                            var content = new Buffer(msg.content, 'base64').toString();
+                            fsextra.writeFileSync(app.path + "/" + msg.path, content, { flag: 'w' });
+                            socket.emit("log", "saved: " + msg.path);
+                            var app = this.applications[msg.app];
+                            var success = yield app.compile(socket);
+                            if (!success)
+                                return;
                         });
                     }.bind(this));
                     socket.on('getCompletionsAtPosition', function (msg) {
@@ -229,7 +178,7 @@ class Engine {
             this.router.get("/", function (req, res, next) {
                 return __awaiter(this, void 0, void 0, function* () {
                     try {
-                        res.redirect('/studio/Static/getFile/index.html');
+                        res.redirect('/studio43/Static/getFile/client/index.html');
                     }
                     catch (err) {
                         throw Error(err.message);
@@ -427,15 +376,6 @@ class Engine {
             yield this.loadApplication(destAppName);
         });
     }
-    getApplicationRepositoryPath(app) {
-        return "/tmp/repos/" + app;
-    }
-    getApplicationRepositorySsh(app) {
-        return __awaiter(this, void 0, void 0, function* () {
-            var registry = (yield this.db.collection(app).find().toArray())[0];
-            return registry.repository.ssh;
-        });
-    }
     credentials(url, userName) {
         console.log("Try authenticate: " + userName + "...");
         try {
@@ -454,57 +394,6 @@ class Engine {
         return {
             credentials: this.credentials
         };
-    }
-    cloneApplication(app) {
-        return __awaiter(this, void 0, void 0, function* () {
-            var repossh = this.getApplicationRepositorySsh(app);
-            var repopath = this.getApplicationRepositoryPath(app);
-            var cloneOptions = { fetchOpts: { callbacks: this.getRemoteCallbacks() } };
-            var repo = yield Git.Clone(repossh, repopath, cloneOptions);
-            console.log("cloned: " + repopath);
-            return repo;
-        });
-    }
-    updateApplication(app) {
-        return __awaiter(this, void 0, void 0, function* () {
-            var repopath = this.getApplicationRepositoryPath(app);
-            var repo = yield Git.Repository.open(repopath);
-            yield repo.fetchAll({ callbacks: this.getRemoteCallbacks() });
-            yield repo.mergeBranches("master", "origin/master");
-            console.log("updated: " + repopath);
-            return repo;
-        });
-    }
-    pushApplication(socket, app) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                var repopath = this.getApplicationRepositoryPath(app);
-                var repo = yield Git.Repository.open(repopath);
-                yield gitkit.config.set(repo, {
-                    'user.name': 'John Doe',
-                    'user.email': 'johndoe@example.com'
-                });
-                var diff = yield gitkit.diff(repo);
-                console.log(diff);
-                yield gitkit.commit(repo, {
-                    'message': 'commit message'
-                });
-                var log = yield gitkit.log(repo);
-                console.log(log);
-                var signature = Git.Signature.create("Foo bar", "foo@bar.com", 123456789, 60);
-                var remote = yield Git.Remote.lookup(repo, "origin");
-                if (remote == null) {
-                    var repourl = this.getApplicationRepositorySsh(app);
-                    remote = yield Git.Remote.create(repo, "origin", repourl);
-                }
-                yield remote.push(["refs/heads/master:refs/heads/master"], { callbacks: this.getRemoteCallbacks() });
-                console.log("pushed: " + repopath);
-                socket.emit("log", "pushed: " + repopath);
-            }
-            catch (err) {
-                console.log(err);
-            }
-        });
     }
 }
 exports.default = Engine;

@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 console.log("Start...");
-console.log("Tauren version: 1.0.19");
+console.log("Tauren version: 3.0.1");
 console.log("Node version: " + process.version);
 var npmi = require('npmi');
 console.log("npm version: " + npmi.NPM_VERSION);

@@ -17,58 +17,28 @@ export default class LanguageServiceHost implements ts.LanguageServiceHost {
   }
 
   getScriptVersion(fileName: string): string {
-    //var file = this.app.findFile(fileName)
-    //if (!file) return "0"
-    //if (!file.metadata) return "0"
-    //if (!file.metadata.version) return "0"
-    //return file.metadata.version.toString()
-
-    console.log("getScriptVersion", fileName)
-
+    //console.log("getScriptVersion", fileName)
     if (fileName.substring(fileName.length-36) == "node_modules/typescript/lib/lib.d.ts"){
       return ""
     }
-
     return this.app.getScriptVersion(fileName)
   }
 
   getScriptSnapshot(fileName: string): ts.IScriptSnapshot | undefined {
-    console.log("getScriptSnapshot", fileName)
+    //console.log("getScriptSnapshot", fileName)
                 
     if (fileName.substring(fileName.length-36) == "node_modules/typescript/lib/lib.d.ts"){
-      console.log("fs: loaded: " + fileName)
+      //console.log("fs: loaded: " + fileName)
       return ts.ScriptSnapshot.fromString(fsextra.readFileSync(fileName).toString())
     }
 
     if (!this.app.isFileExists(fileName)) {
-      console.log("fs: not exists: " + fileName)
+      //console.log("fs: not exists: " + fileName)
       return undefined
     }
  
-    console.log("fs: loaded: " + fileName)
-    return ts.ScriptSnapshot.fromString(this.app.loadFile3(fileName).buffer.toString())
-
-    //if (fileName.substring(0,13) == "/node_modules") {
-    //  if (!fsextra.existsSync("/tmp/virtual/" + this.app.name + "/" + fileName)) {
-    //    console.log("fs: not exists: " + "/tmp/virtual/" + this.app.name + "/" + fileName)
-    //    return undefined
-    //  }
-    //  console.log("fs: loaded: " + "/tmp/virtual/" + this.app.name + "/" + fileName)
-    //  return ts.ScriptSnapshot.fromString(fsextra.readFileSync("/tmp/virtual/" + this.app.name + "/" + fileName).toString())
-    //}
-
-    //if (fileName.substring(0,8) == "/virtual") {
-    //  fileName = fileName.substring(8)
-    //  if (!this.app.engine.cache.existsSync(fileName)) {
-    //    console.log("cache: not exists: " + fileName)
-    //    return undefined
-    //  }
-    //  console.log("cache: loaded: " + fileName)
-    //  return ts.ScriptSnapshot.fromString(this.app.engine.cache.readFileSync(fileName).toString())
-    //}
-
-    //console.log("not exists")
-    //return undefined
+    //console.log("fs: loaded: " + fileName)
+    return ts.ScriptSnapshot.fromString(this.app.loadFile(fileName).buffer.toString())
   }
 
   getCurrentDirectory(): string{
@@ -76,13 +46,12 @@ export default class LanguageServiceHost implements ts.LanguageServiceHost {
   }
 
   getCompilationSettings(): ts.CompilerOptions {
-    //var configpath = '/tmp/virtual/' + this.app.name + '/config/tsconfig.json'
-    //if (fsextra.existsSync(configpath)){
-   //   var configFile = fsextra.readFileSync(configpath)
-    //  var configStr = configFile.toString()
-    //  var config = JSON.parse(configStr)
-    //  return config
-    //}
+    var path = '/config/tsconfig.json'
+    if (this.app.isFileExists(path)){
+      var tsconfig = this.app.loadFile(path).buffer.toString()
+      var result = JSON.parse(tsconfig)
+      return result
+    }
     
     return { 
         outFile: "dist/main-all.js",

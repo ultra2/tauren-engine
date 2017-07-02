@@ -15,8 +15,9 @@ import * as model from './model'
 import Engine from './Engine'
 import * as ts from "typescript"
 import LanguageServiceHost from "./LanguageServiceHost"
-var gitkit = require('nodegit-kit');
-var npmi = require('npmi');
+var Git = require("nodegit")
+var gitkit = require('nodegit-kit')
+var npmi = require('npmi')
 
 export default class Application {
 
@@ -68,8 +69,8 @@ export default class Application {
             //await this.createTree()
             //await this.cache2()
             //await this.npminstall()
-            var buffer = await this.dbLoadFileByName("controller.js")
-            var F = Function('app', buffer)
+            var file = await this.dbLoadFile("server/controller.js")
+            var F = Function('app', file.buffer)
             F(this)
             this.loaded = true
             console.log("Application loaded: " + this.name);
@@ -78,13 +79,6 @@ export default class Application {
         catch (err) {
             console.log("Application could not been loaded: " + this.name + ", " + err);
         }
-    }
-
-    public async open(socket: any) {
-        await this.createTree()
-        await this.cache2(socket)
-        await this.npminstall()
-        await this.compile(socket)
     }
 
     public async listDocuments() {
@@ -162,116 +156,6 @@ export default class Application {
         return { message: "Package installed successfully!" }
     }
 
-    public createTempDir(){
-        var projectpath = "/tmp/virtual/" + this.name
-        fsextra.ensureDirSync(projectpath)
-
-        //var virtualpath = "/tmp/virtual"
-        //if (!fsextra.existsSync(virtualpath)){
-        //    console.log("create " + virtualpath);
-        //    fsextra.mkdirSync(virtualpath)
-        //}
-        //else{
-        //    console.log("exists " + virtualpath);
-        //}
-
-        //var projectpath = "/tmp/virtual/" + this.name
-        //if (!fsextra.existsSync(projectpath)){
-        //    console.log("create " + projectpath);
-        //    fsextra.mkdirSync(projectpath)
-        //}
-        //else{
-        //    console.log("exists " + projectpath);
-        //}
-
-        //console.log('empty ' + projectpath)
-        //fsextra.emptyDirSync(projectpath)
-    }
-
-    public async cache(socket) {
-        this.createTempDir()
-        socket.emit("log", "Caching...")
-        var fs = await this.loadDocument("fs")
-        this.paths = []
-        await this.cacheStub(fs._attachments, "/" + this.name)
-        await Promise.all(this.paths.map( async path => { await this.cacheFile(path) }))
-        socket.emit("log", "Caching finished. Files count: " + this.paths.length)
-    }
-
-    public async cacheStub(fileStub: any, path: string) {
-
-        if (path.indexOf('.') == -1) {  //folder?
-            this.engine.cache.mkdirpSync(path);
-            fsextra.mkdirpSync("/tmp/virtual/" + path)
-            for (var key in fileStub) {
-                await this.cacheStub(fileStub[key], path + "/" + key)
-            }
-        }
-        else {
-            this.paths.push(path)
-            this.pathversions["/virtual" + path] = { version: 0 };
-        }
-    }
-    
-    public async cacheFile(path: string) {
-        var fileinfo = await this.engine.mongo.loadFile(path)
-        if (path[0] != '/') path = '/' + path  //memory-fs fix.
-        this.engine.cache.writeFileSync(path, fileinfo.buffer)
-        fsextra.writeFileSync("/tmp/virtual/" + path, fileinfo.buffer, { flag : 'w' })
-        this.pathversions["/virtual" + path].version++;
-    }
-
-    public async cache2(socket?) {
-        this.createTempDir()
-        if (socket) socket.emit("log", "Caching...")
-        await Promise.all(this.filesArray.map( async file => { await this.cacheFile2(file) }))
-        if (socket) socket.emit("log", "Caching finished. Files/Folders count: " + this.filesArray.length)
-    }
-    
-    public async cacheFile2(file: any) {
-        if (file.contentType == "text/directory"){
-            fsextra.mkdirpSync(this.path + '/' + file.path)
-            return
-        }
-        var buffer = await this.dbLoadFileById(file._id)
-        fsextra.writeFileSync(this.path + '/' + file.path, buffer, { flag : 'w' })
-    }
-
-    //public async cacheFileById(id: string) {
-    //    debugger
-
-    //    var file = await new Promise<Object>(function (resolve, reject) {
-
-    //        this.engine.gridfs.findOne({ _id: id}, function (err, file) {
-    //            resolve(file);
-    //        })
-    //    })
-
-    //    if (file["contentType"] == "text/directory"){
-    //        fsextra.mkdirpSync(this.path + file.path)
-    //        return
-    //    }
-    //    var buffer = await this.loadFileById(id)
-    //    fsextra.writeFileSync(this.path + file.path, buffer, { flag : 'w' })
-    //}
-
-    findFile(path) : any{
-        var files = this.filesArray.filter(file => file.path === path)
-        if (files.length == 0){
-            return undefined
-        }
-        return files[0]
-    }
-
-    findFileById(_id) : any{
-        var files = this.filesArray.filter(file => file._id === _id)
-        if (files.length == 0){
-            return undefined
-        }
-        return files[0]
-    }
-
-
     public async dbLoadFileById(id: string): Promise<any> {
         var readstream = this.engine.gridfs.createReadStream({
             _id: id,
@@ -286,18 +170,45 @@ export default class Application {
         }
     }
 
-    public async dbLoadFileByName(filename: string): Promise<any> {
-        var readstream = this.engine.gridfs.createReadStream({
-            filename: filename,
-            root: this.name
-        })
-
+    public async dbLoadFile(path: string): Promise<model.fileInfo> {
         try {
-            return await Utils.fromStream(readstream)
+            var result = new model.fileInfo()
+
+            //contentType
+            var filedesc = await this.engine.db.collection(this.name + ".files").findOne({ filename: path })
+            result.contentType = filedesc.contentType
+
+            //buffer
+            var readstream = this.engine.gridfs.createReadStream({
+                filename: path,
+                root: this.name
+            })
+            result.buffer = await Utils.fromStream(readstream)
+
+            return result
         }
         catch (err) {
             throw Error(err.message)
         }
+    }
+
+    public async dbSaveFile(path: string, content: any, socket: any): Promise<void> {
+        try {
+            var filedesc = await this.engine.db.collection(this.name + ".files").findOne({ filename: path })
+            var _id = (filedesc) ? filedesc._id : uuid.v1()
+
+            var writestream = this.engine.gridfs.createWriteStream({
+                _id: _id,
+                filename: path,
+                content_type: Utils.getMime(path),
+                root: this.name
+            })
+
+            await Utils.toStream(content, writestream)
+        }
+        catch (err) {
+            throw Error(err.message)
+        }    
     }
 
     public async createTree(){
@@ -318,7 +229,43 @@ export default class Application {
         }
     }
 
-    public async npminstall() {
+    private async getRepositorySsh(): Promise<string> {
+        var registry = (await this.engine.db.collection(this.name).find().toArray())[0]
+        return registry.repository.ssh
+    }
+
+    public async open(socket: any): Promise<any> {
+        var repo = null
+        if (!fsextra.existsSync(this.path)){
+            repo = await this.clone(socket)
+        }
+        else{
+            repo = await this.update(socket)
+        }
+        await this.npminstall(socket)
+        return repo
+    }
+
+    public async clone(socket: any): Promise<any> {
+        socket.emit("log", "cloning...")
+        var repossh = await this.getRepositorySsh()
+        var cloneOptions = { fetchOpts: { callbacks: this.engine.getRemoteCallbacks() } }
+        var repo = await Git.Clone(repossh, this.path, cloneOptions)
+        socket.emit("log", "cloned")
+        return repo
+    }
+
+    public async update(socket: any): Promise<any> {
+        socket.emit("log", "updating...")
+        var repo = await Git.Repository.open(this.path) 
+        await repo.fetchAll({ callbacks: this.engine.getRemoteCallbacks() })
+        await repo.mergeBranches("master", "origin/master")
+        socket.emit("log", "updated")
+        return repo
+    }
+
+    public async npminstall(socket: any) {
+        socket.emit("log", "npm install")
         var options = {
 	        //name: 'react-split-pane',	// your module name
             //version: '3.10.9',		// expected version [default: 'latest']
@@ -334,20 +281,75 @@ export default class Application {
                 if (err) {
                     if (err.code === npmi.LOAD_ERR) {
                         console.log('npm load error')
+                        socket.emit("log", "npm install: load error")
                         reject(err)
                         return
                     }
                     if (err.code === npmi.INSTALL_ERR) {
                         console.log('npm install error: ' + err.message)
+                        socket.emit("log", "npm install: " + err.message)
                         reject(err)
                         return
                     }
                     reject(err)
-                    return console.log(err.message);
+                    console.log(err.message);
+                    socket.emit("log", "npm install: " + err.message)
                 }
                 resolve(result)
+                socket.emit("log", "npm install: ok")
             }.bind(this));
         }.bind(this))
+    }
+
+    public async push(socket: any) {
+        try{
+            socket.emit("log", "pushing...")
+
+            var repo = await Git.Repository.open(this.path) 
+    
+            await gitkit.config.set(repo, {
+                'user.name': 'John Doe',
+                'user.email': 'johndoe@example.com'
+            })
+
+            var diff = await gitkit.diff(repo)
+            console.log(diff)
+
+            await gitkit.commit(repo, {
+                'message': 'commit message'
+            });
+
+            var log = await gitkit.log(repo)
+            console.log(log)
+
+            //signature
+            var signature = Git.Signature.create("Foo bar", "foo@bar.com", 123456789, 60); //var signature = Signature.default(repo);
+
+            //index
+            //var index = await repo.refreshIndex()
+            //var index = await repo.index()
+            //var a = await index.removeAll()
+            //var a2 =await index.addAll()
+            //var a3 =await index.write()
+            //var oid = await index.writeTree()
+
+            //commit
+            //await repo.createCommit("HEAD", signature, signature, "initial commit", oid, [])
+             
+            //remote
+            var remote = await Git.Remote.lookup(repo, "origin")
+            if (remote == null){
+                var repourl = await this.getRepositorySsh()
+                remote = await Git.Remote.create(repo, "origin", repourl)
+            }
+
+            //push
+            await remote.push(["refs/heads/master:refs/heads/master"], { callbacks: this.engine.getRemoteCallbacks() })
+            socket.emit("log", "pushed")
+        }
+        catch(err){
+            console.log(err)
+        }
     }
 
     public getCompletionsAtPosition(msg) {
@@ -404,13 +406,13 @@ export default class Application {
         return new Promise<void>(function (resolve, reject) {
 
             try {
-                var configFile = fsextra.readFileSync("/tmp/virtual/" + this.name + "/config/webpack.json") 
-                var configStr = configFile.toString().replace(/\"\.\//gi, '"' + '/tmp/virtual/' + this.name + '/')
+                var configFile = fsextra.readFileSync(this.path + "/config/webpack.json") 
+                var configStr = configFile.toString().replace(/\"\.\//gi, '"' + this.path + '/')
                 var config = JSON.parse(configStr)
                 var compiler = webpack(config)
             }
             catch(err){
-                socket.emit("log", err.message)
+                if (socket) socket.emit("log", err.message)
                 resolve()
                 return
             }
@@ -423,7 +425,7 @@ export default class Application {
                     return
                 }
 
-                socket.emit("log", stats.toString())
+                if (socket) socket.emit("log", stats.toString())
                 
                 if (stats.hasErrors()){
                     socket.emit("log", "Build failed.")
@@ -431,9 +433,7 @@ export default class Application {
                     return
                 }
                 
-                var buffer = fsextra.readFileSync(config.output.path + '/' + config.output.filename)
-                await this.engine.mongo.uploadFileOrFolder(config.output.path.substr('/tmp/virtual/'.length) + '/' + config.output.filename, buffer) 
-                socket.emit("log", "Build success.")
+                if (socket) socket.emit("log", "Build success.")
                 resolve()
                 return
 
@@ -441,34 +441,44 @@ export default class Application {
              
         }.bind(this))
     }
- 
-    public loadFile(path: string): model.fileInfo {
-        var result = new model.fileInfo()
-        result.buffer = fsextra.readFileSync("/tmp/virtual/" + path) 
-        result.contentType = mime.lookup(path)
-        return result
+
+    public async publish(socket): Promise<void> {
+        if (socket) socket.emit("log", "Publish started...")
+
+        await this.publishFile("dist", socket)
+
+    //    var buffer = fsextra.readFileSync(config.output.path + '/' + config.output.filename)
+    //    await this.engine.mongo.uploadFileOrFolder(config.output.path.substr('/tmp/virtual/'.length) + '/' + config.output.filename, buffer) 
+        
+        if (socket) socket.emit("log", "Publish success.")
+    }
+
+    public async publishFile(path: string, socket: any): Promise<void> {
+        var stat = fsextra.lstatSync(this.path + '/' + path)
+
+        if (stat.isFile()) {
+            var buffer = fsextra.readFileSync(this.path + '/' + path)
+
+            var pathToSave = path.substr(5) //remove 'dist/', we dont need it in db
+            await this.dbSaveFile(pathToSave, buffer, socket)
+            
+            //if (socket) socket.emit("log", "Publish file: " + path)
+        }
+
+        if (stat.isDirectory()){
+            var children = fsextra.readdirSync(this.path + '/' + path)
+            for (var i in children) { 
+                var child = children[i]
+
+                if (child[0] == '.') continue
+
+                var childPath = (path) ? path + '/' + child : child
+                await this.publishFile(childPath, socket)
+            }
+        }
     }
  
-    public async loadFile2(path: string): Promise<any> {
-        path = path.replace("studio42/", "")
-        var result = new model.fileInfo()
-        result.buffer = fsextra.readFileSync(this.path + '/' + path) 
-        result.contentType = mime.lookup(path)
-        return result
-
-        //path = path.replace("studio42/dist/", "");
-        //return this.dbLoadFileByName(path)
-        //return fsextra.readFileSync(this.path + "/" + path) 
-
-        //path = path.replace("studio42/dist/", "")
-        //var result = new model.fileInfo()
-        //result.buffer = await this.dbLoadFileByName(path) 
-        //result.contentType = mime.lookup(path)
-        //return result
-    }
- 
-    public loadFile3(path: string): any {
-        path = path.replace("studio42/", "")
+    public loadFile(path: string): any {
         var result = new model.fileInfo()
         result.buffer = fsextra.readFileSync(this.path + '/' + path) 
         result.contentType = mime.lookup(path)
@@ -484,16 +494,16 @@ export default class Application {
         return fsextra.existsSync(this.path + "/" + path)
     }
 
-    public async dbUpdateFileContentById(_id: string, content: any, socket?: any) {
+    //public async dbUpdateFileContentById(_id: string, content: any, socket?: any) {
         //await this.engine.db.collection(this.name + ".files").findOne({ _id: _id })
-        var file = this.findFileById(_id) 
-        file["root"] = this.name
-        file.metadata.version += 1  
-        var writestream = this.engine.gridfs.createWriteStream(file)
-        await Utils.toStream(content, writestream)
-        fsextra.writeFileSync(this.path + '/' + file.path, content, { flag: 'w' });
+    //    var file = this.findFileById(_id) 
+    //    file["root"] = this.name
+    //    file.metadata.version += 1  
+    //    var writestream = this.engine.gridfs.createWriteStream(file)
+    //    await Utils.toStream(content, writestream)
+    //    fsextra.writeFileSync(this.path + '/' + file.path, content, { flag: 'w' });
         //await this.cacheFile2(file)
-    }
+    //}
 
     public newFolder(msg: any, socket: any): any {
         fsextra.mkdirpSync(this.path + '/' + msg.path)
@@ -508,13 +518,13 @@ export default class Application {
     private createNode(relpath): any {
         var node = {}
         node["filename"] = (relpath == '') ? this.name : path.basename(relpath)
-        node["collapse"] = true
+        node["collapsed"] = (relpath != '')
         node["path"] = relpath
 
         var stat = fsextra.lstatSync(this.path + '/' + relpath)
-        if (stat.isFile()) (
+        if (stat.isFile()) {
             node["contentType"] = Utils.getMime(relpath)
-        )
+        }
 
         if (stat.isDirectory()){
             node["contentType"] = "text/directory"
@@ -535,53 +545,9 @@ export default class Application {
         
         return node
     }
-
-    //public async dbCreateFolder(msg: any, socket: any): Promise<any> {
-    //    var _id = uuid.v1()
-    //    var writestream = this.engine.gridfs.createWriteStream({
-    //        _id: _id,
-    //        filename: msg.filename,
-    //        content_type: "text/directory",
-    //        metadata: {
-    //            parent_id: msg.parent_id,
-    //            version: 0
-    //        },
-    //        root: this.name
-    //    })
-    //    await Utils.toStream("", writestream)
-    //    return _id
-    //}
  
-    public async dbCreateFile(msg: any, socket: any): Promise<any> {
-        var _id = uuid.v1()
-        var writestream = this.engine.gridfs.createWriteStream({
-            _id: _id,
-            filename: msg.filename,
-            content_type: Utils.getMime(msg.filename),
-            metadata: {
-                parent_id: msg.parent_id,
-                version: 0
-            },
-            root: this.name
-        })
-        await Utils.toStream("", writestream)
-        return _id
-    }
-
     public async WriteFile(fileName: string, data: string, writeByteOrderMark: boolean, onError?: (message: string) => void, sourceFiles?: ts.SourceFile[]): Promise<void>{
-        
-        //a DB-be felesleges kiirni, mert fs-bol megy a Static/getFile, adatvesztes nincs.
         fsextra.writeFileSync(this.path + "/" + fileName, data, { flag : 'w' })
-        
-        //var file =  await this.engine.db.collection(this.name + ".files").findOne({ filename: fileName })
-        //var file = this.findFile(fileName)
-        //if (file){
-        //    await this.updateFileContent(file._id, data)
-        //    return
-        //}
-        //onError("Compile output file is not exists: " + fileName)
-        //this.engine.mongo.uploadFileOrFolder(this.name + "/" + fileName, data)
-        //fsextra.writeFileSync("/tmp/virtual/" + this.name + "/" + fileName, data, { flag : 'w' })
     }
 
    /* public async build2(): Promise<Object> {

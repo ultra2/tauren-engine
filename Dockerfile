@@ -1,4 +1,4 @@
-FROM node:boron
+FROM node:7.2.1
 
 RUN mkdir -p /tmp
 

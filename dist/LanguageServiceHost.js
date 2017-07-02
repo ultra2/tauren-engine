@@ -10,29 +10,30 @@ class LanguageServiceHost {
         return ["main.tsx"];
     }
     getScriptVersion(fileName) {
-        console.log("getScriptVersion", fileName);
         if (fileName.substring(fileName.length - 36) == "node_modules/typescript/lib/lib.d.ts") {
             return "";
         }
         return this.app.getScriptVersion(fileName);
     }
     getScriptSnapshot(fileName) {
-        console.log("getScriptSnapshot", fileName);
         if (fileName.substring(fileName.length - 36) == "node_modules/typescript/lib/lib.d.ts") {
-            console.log("fs: loaded: " + fileName);
             return ts.ScriptSnapshot.fromString(fsextra.readFileSync(fileName).toString());
         }
         if (!this.app.isFileExists(fileName)) {
-            console.log("fs: not exists: " + fileName);
             return undefined;
         }
-        console.log("fs: loaded: " + fileName);
-        return ts.ScriptSnapshot.fromString(this.app.loadFile3(fileName).buffer.toString());
+        return ts.ScriptSnapshot.fromString(this.app.loadFile(fileName).buffer.toString());
     }
     getCurrentDirectory() {
         return "";
     }
     getCompilationSettings() {
+        var path = '/config/tsconfig.json';
+        if (this.app.isFileExists(path)) {
+            var tsconfig = this.app.loadFile(path).buffer.toString();
+            var result = JSON.parse(tsconfig);
+            return result;
+        }
         return {
             outFile: "dist/main-all.js",
             noEmitOnError: true,

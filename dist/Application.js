@@ -18,6 +18,7 @@ const utils_1 = require("./utils");
 const model = require("./model");
 const ts = require("typescript");
 const LanguageServiceHost_1 = require("./LanguageServiceHost");
+var Git = require("nodegit");
 var gitkit = require('nodegit-kit');
 var npmi = require('npmi');
 class Application {
@@ -54,8 +55,8 @@ class Application {
                     console.log("Application loaded: " + this.name);
                     return;
                 }
-                var buffer = yield this.dbLoadFileByName("controller.js");
-                var F = Function('app', buffer);
+                var file = yield this.dbLoadFile("server/controller.js");
+                var F = Function('app', file.buffer);
                 F(this);
                 this.loaded = true;
                 console.log("Application loaded: " + this.name);
@@ -64,14 +65,6 @@ class Application {
             catch (err) {
                 console.log("Application could not been loaded: " + this.name + ", " + err);
             }
-        });
-    }
-    open(socket) {
-        return __awaiter(this, void 0, void 0, function* () {
-            yield this.createTree();
-            yield this.cache2(socket);
-            yield this.npminstall();
-            yield this.compile(socket);
         });
     }
     listDocuments() {
@@ -141,80 +134,6 @@ class Application {
             return { message: "Package installed successfully!" };
         });
     }
-    createTempDir() {
-        var projectpath = "/tmp/virtual/" + this.name;
-        fsextra.ensureDirSync(projectpath);
-    }
-    cache(socket) {
-        return __awaiter(this, void 0, void 0, function* () {
-            this.createTempDir();
-            socket.emit("log", "Caching...");
-            var fs = yield this.loadDocument("fs");
-            this.paths = [];
-            yield this.cacheStub(fs._attachments, "/" + this.name);
-            yield Promise.all(this.paths.map((path) => __awaiter(this, void 0, void 0, function* () { yield this.cacheFile(path); })));
-            socket.emit("log", "Caching finished. Files count: " + this.paths.length);
-        });
-    }
-    cacheStub(fileStub, path) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (path.indexOf('.') == -1) {
-                this.engine.cache.mkdirpSync(path);
-                fsextra.mkdirpSync("/tmp/virtual/" + path);
-                for (var key in fileStub) {
-                    yield this.cacheStub(fileStub[key], path + "/" + key);
-                }
-            }
-            else {
-                this.paths.push(path);
-                this.pathversions["/virtual" + path] = { version: 0 };
-            }
-        });
-    }
-    cacheFile(path) {
-        return __awaiter(this, void 0, void 0, function* () {
-            var fileinfo = yield this.engine.mongo.loadFile(path);
-            if (path[0] != '/')
-                path = '/' + path;
-            this.engine.cache.writeFileSync(path, fileinfo.buffer);
-            fsextra.writeFileSync("/tmp/virtual/" + path, fileinfo.buffer, { flag: 'w' });
-            this.pathversions["/virtual" + path].version++;
-        });
-    }
-    cache2(socket) {
-        return __awaiter(this, void 0, void 0, function* () {
-            this.createTempDir();
-            if (socket)
-                socket.emit("log", "Caching...");
-            yield Promise.all(this.filesArray.map((file) => __awaiter(this, void 0, void 0, function* () { yield this.cacheFile2(file); })));
-            if (socket)
-                socket.emit("log", "Caching finished. Files/Folders count: " + this.filesArray.length);
-        });
-    }
-    cacheFile2(file) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (file.contentType == "text/directory") {
-                fsextra.mkdirpSync(this.path + '/' + file.path);
-                return;
-            }
-            var buffer = yield this.dbLoadFileById(file._id);
-            fsextra.writeFileSync(this.path + '/' + file.path, buffer, { flag: 'w' });
-        });
-    }
-    findFile(path) {
-        var files = this.filesArray.filter(file => file.path === path);
-        if (files.length == 0) {
-            return undefined;
-        }
-        return files[0];
-    }
-    findFileById(_id) {
-        var files = this.filesArray.filter(file => file._id === _id);
-        if (files.length == 0) {
-            return undefined;
-        }
-        return files[0];
-    }
     dbLoadFileById(id) {
         return __awaiter(this, void 0, void 0, function* () {
             var readstream = this.engine.gridfs.createReadStream({
@@ -229,14 +148,36 @@ class Application {
             }
         });
     }
-    dbLoadFileByName(filename) {
+    dbLoadFile(path) {
         return __awaiter(this, void 0, void 0, function* () {
-            var readstream = this.engine.gridfs.createReadStream({
-                filename: filename,
-                root: this.name
-            });
             try {
-                return yield utils_1.default.fromStream(readstream);
+                var result = new model.fileInfo();
+                var filedesc = yield this.engine.db.collection(this.name + ".files").findOne({ filename: path });
+                result.contentType = filedesc.contentType;
+                var readstream = this.engine.gridfs.createReadStream({
+                    filename: path,
+                    root: this.name
+                });
+                result.buffer = yield utils_1.default.fromStream(readstream);
+                return result;
+            }
+            catch (err) {
+                throw Error(err.message);
+            }
+        });
+    }
+    dbSaveFile(path, content, socket) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                var filedesc = yield this.engine.db.collection(this.name + ".files").findOne({ filename: path });
+                var _id = (filedesc) ? filedesc._id : uuid.v1();
+                var writestream = this.engine.gridfs.createWriteStream({
+                    _id: _id,
+                    filename: path,
+                    content_type: utils_1.default.getMime(path),
+                    root: this.name
+                });
+                yield utils_1.default.toStream(content, writestream);
             }
             catch (err) {
                 throw Error(err.message);
@@ -261,8 +202,48 @@ class Application {
             }
         }
     }
-    npminstall() {
+    getRepositorySsh() {
         return __awaiter(this, void 0, void 0, function* () {
+            var registry = (yield this.engine.db.collection(this.name).find().toArray())[0];
+            return registry.repository.ssh;
+        });
+    }
+    open(socket) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var repo = null;
+            if (!fsextra.existsSync(this.path)) {
+                repo = yield this.clone(socket);
+            }
+            else {
+                repo = yield this.update(socket);
+            }
+            yield this.npminstall(socket);
+            return repo;
+        });
+    }
+    clone(socket) {
+        return __awaiter(this, void 0, void 0, function* () {
+            socket.emit("log", "cloning...");
+            var repossh = yield this.getRepositorySsh();
+            var cloneOptions = { fetchOpts: { callbacks: this.engine.getRemoteCallbacks() } };
+            var repo = yield Git.Clone(repossh, this.path, cloneOptions);
+            socket.emit("log", "cloned");
+            return repo;
+        });
+    }
+    update(socket) {
+        return __awaiter(this, void 0, void 0, function* () {
+            socket.emit("log", "updating...");
+            var repo = yield Git.Repository.open(this.path);
+            yield repo.fetchAll({ callbacks: this.engine.getRemoteCallbacks() });
+            yield repo.mergeBranches("master", "origin/master");
+            socket.emit("log", "updated");
+            return repo;
+        });
+    }
+    npminstall(socket) {
+        return __awaiter(this, void 0, void 0, function* () {
+            socket.emit("log", "npm install");
             var options = {
                 path: this.path,
                 forceInstall: false,
@@ -275,20 +256,54 @@ class Application {
                     if (err) {
                         if (err.code === npmi.LOAD_ERR) {
                             console.log('npm load error');
+                            socket.emit("log", "npm install: load error");
                             reject(err);
                             return;
                         }
                         if (err.code === npmi.INSTALL_ERR) {
                             console.log('npm install error: ' + err.message);
+                            socket.emit("log", "npm install: " + err.message);
                             reject(err);
                             return;
                         }
                         reject(err);
-                        return console.log(err.message);
+                        console.log(err.message);
+                        socket.emit("log", "npm install: " + err.message);
                     }
                     resolve(result);
+                    socket.emit("log", "npm install: ok");
                 }.bind(this));
             }.bind(this));
+        });
+    }
+    push(socket) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                socket.emit("log", "pushing...");
+                var repo = yield Git.Repository.open(this.path);
+                yield gitkit.config.set(repo, {
+                    'user.name': 'John Doe',
+                    'user.email': 'johndoe@example.com'
+                });
+                var diff = yield gitkit.diff(repo);
+                console.log(diff);
+                yield gitkit.commit(repo, {
+                    'message': 'commit message'
+                });
+                var log = yield gitkit.log(repo);
+                console.log(log);
+                var signature = Git.Signature.create("Foo bar", "foo@bar.com", 123456789, 60);
+                var remote = yield Git.Remote.lookup(repo, "origin");
+                if (remote == null) {
+                    var repourl = yield this.getRepositorySsh();
+                    remote = yield Git.Remote.create(repo, "origin", repourl);
+                }
+                yield remote.push(["refs/heads/master:refs/heads/master"], { callbacks: this.engine.getRemoteCallbacks() });
+                socket.emit("log", "pushed");
+            }
+            catch (err) {
+                console.log(err);
+            }
         });
     }
     getCompletionsAtPosition(msg) {
@@ -324,13 +339,14 @@ class Application {
                 socket.emit("log", "Build started...");
             return new Promise(function (resolve, reject) {
                 try {
-                    var configFile = fsextra.readFileSync("/tmp/virtual/" + this.name + "/config/webpack.json");
-                    var configStr = configFile.toString().replace(/\"\.\//gi, '"' + '/tmp/virtual/' + this.name + '/');
+                    var configFile = fsextra.readFileSync(this.path + "/config/webpack.json");
+                    var configStr = configFile.toString().replace(/\"\.\//gi, '"' + this.path + '/');
                     var config = JSON.parse(configStr);
                     var compiler = webpack(config);
                 }
                 catch (err) {
-                    socket.emit("log", err.message);
+                    if (socket)
+                        socket.emit("log", err.message);
                     resolve();
                     return;
                 }
@@ -341,15 +357,15 @@ class Application {
                             resolve();
                             return;
                         }
-                        socket.emit("log", stats.toString());
+                        if (socket)
+                            socket.emit("log", stats.toString());
                         if (stats.hasErrors()) {
                             socket.emit("log", "Build failed.");
                             resolve();
                             return;
                         }
-                        var buffer = fsextra.readFileSync(config.output.path + '/' + config.output.filename);
-                        yield this.engine.mongo.uploadFileOrFolder(config.output.path.substr('/tmp/virtual/'.length) + '/' + config.output.filename, buffer);
-                        socket.emit("log", "Build success.");
+                        if (socket)
+                            socket.emit("log", "Build success.");
                         resolve();
                         return;
                     });
@@ -357,23 +373,36 @@ class Application {
             }.bind(this));
         });
     }
-    loadFile(path) {
-        var result = new model.fileInfo();
-        result.buffer = fsextra.readFileSync("/tmp/virtual/" + path);
-        result.contentType = mime.lookup(path);
-        return result;
-    }
-    loadFile2(path) {
+    publish(socket) {
         return __awaiter(this, void 0, void 0, function* () {
-            path = path.replace("studio42/", "");
-            var result = new model.fileInfo();
-            result.buffer = fsextra.readFileSync(this.path + '/' + path);
-            result.contentType = mime.lookup(path);
-            return result;
+            if (socket)
+                socket.emit("log", "Publish started...");
+            yield this.publishFile("dist", socket);
+            if (socket)
+                socket.emit("log", "Publish success.");
         });
     }
-    loadFile3(path) {
-        path = path.replace("studio42/", "");
+    publishFile(path, socket) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var stat = fsextra.lstatSync(this.path + '/' + path);
+            if (stat.isFile()) {
+                var buffer = fsextra.readFileSync(this.path + '/' + path);
+                var pathToSave = path.substr(5);
+                yield this.dbSaveFile(pathToSave, buffer, socket);
+            }
+            if (stat.isDirectory()) {
+                var children = fsextra.readdirSync(this.path + '/' + path);
+                for (var i in children) {
+                    var child = children[i];
+                    if (child[0] == '.')
+                        continue;
+                    var childPath = (path) ? path + '/' + child : child;
+                    yield this.publishFile(childPath, socket);
+                }
+            }
+        });
+    }
+    loadFile(path) {
         var result = new model.fileInfo();
         result.buffer = fsextra.readFileSync(this.path + '/' + path);
         result.contentType = mime.lookup(path);
@@ -386,16 +415,6 @@ class Application {
     isFileExists(path) {
         return fsextra.existsSync(this.path + "/" + path);
     }
-    dbUpdateFileContentById(_id, content, socket) {
-        return __awaiter(this, void 0, void 0, function* () {
-            var file = this.findFileById(_id);
-            file["root"] = this.name;
-            file.metadata.version += 1;
-            var writestream = this.engine.gridfs.createWriteStream(file);
-            yield utils_1.default.toStream(content, writestream);
-            fsextra.writeFileSync(this.path + '/' + file.path, content, { flag: 'w' });
-        });
-    }
     newFolder(msg, socket) {
         fsextra.mkdirpSync(this.path + '/' + msg.path);
         return this.createNode(msg.path);
@@ -407,11 +426,12 @@ class Application {
     createNode(relpath) {
         var node = {};
         node["filename"] = (relpath == '') ? this.name : path.basename(relpath);
-        node["collapse"] = true;
+        node["collapsed"] = (relpath != '');
         node["path"] = relpath;
         var stat = fsextra.lstatSync(this.path + '/' + relpath);
-        if (stat.isFile())
-            (node["contentType"] = utils_1.default.getMime(relpath));
+        if (stat.isFile()) {
+            node["contentType"] = utils_1.default.getMime(relpath);
+        }
         if (stat.isDirectory()) {
             node["contentType"] = "text/directory";
             node["children"] = [];
@@ -429,23 +449,6 @@ class Application {
             }
         }
         return node;
-    }
-    dbCreateFile(msg, socket) {
-        return __awaiter(this, void 0, void 0, function* () {
-            var _id = uuid.v1();
-            var writestream = this.engine.gridfs.createWriteStream({
-                _id: _id,
-                filename: msg.filename,
-                content_type: utils_1.default.getMime(msg.filename),
-                metadata: {
-                    parent_id: msg.parent_id,
-                    version: 0
-                },
-                root: this.name
-            });
-            yield utils_1.default.toStream("", writestream);
-            return _id;
-        });
     }
     WriteFile(fileName, data, writeByteOrderMark, onError, sourceFiles) {
         return __awaiter(this, void 0, void 0, function* () {

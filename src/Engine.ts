@@ -15,8 +15,8 @@ import MongoFS from './MongoFS'
 import Utils from './utils'
 import MemoryFileSystem = require('memory-fs') //You need to import export = style libraries with import require. This is because of the ES6 spec.
 import socketIo = require('socket.io')
-var Git = require("nodegit");
-var gitkit = require('nodegit-kit');
+var Git = require("nodegit")
+var gitkit = require('nodegit-kit')
 
 export default class Engine {
 
@@ -78,118 +78,26 @@ export default class Engine {
             socket.emit("info", this.info)  
             socket.emit("applications", Object.keys(this.applications))  
 
-            //if (socket.handshake.query.app) {
-            //    var currapp = socket.handshake.query.app
-            //    var settings = await this.db.collection(currapp).find().toArray()
-            //    var setting = settings[0]
-            //    socket.emit("settings", setting)
-            //}
-        
             socket.on('openApplication', async function(msg){
+                //var currapp = socket.handshake.query.app
                 var app = this.applications[msg]
-                await app.cache(socket)
-                await app.npminstall()
-                var fs = await app.loadDocument("fs")
+                var repo = await app.open(socket)
+                var root = app.createNode('')
                 socket.emit("application", {
                     name: app.name,
-                    attachments: fs["_attachments"]
+                    tree: root
                 }) 
             }.bind(this));
 
-            socket.on('openApplication2', async function(msg){
-                var app = this.applications[msg]
-                await app.open(socket)
-                socket.emit("application", {
-                    name: app.name,
-                    tree: app.filesRoot
-                }) 
-            }.bind(this));
-
-            socket.on('openApplication3', async function(msg){
-                
-                try {
-                    var appname = msg
-                    var app = this.applications[msg]
-
-                    //var currapp = socket.handshake.query.app
-                    //var settings = await this.db.collection(currapp).find().toArray()
-                    //var setting = settings[0]
-
-                    //var project = null
-                    //setting.projects.forEach(element => {
-                    //    if (element.name == appname){
-                    //        project = element
-                    //    }
-                    //}); 
-                    
-                    var repopath = this.getApplicationRepositoryPath(appname)
-
-                    if (!fsextra.existsSync(repopath)){
-                        await this.cloneApplication(appname)
-                    }
-                    else{
-                        await this.updateApplication(appname)
-                    }
-                
-                    var root = app.createNode('')
-                    root["collapse"] = false
-
-                    socket.emit("application", {
-                        name: appname,
-                        tree: root
-                    }) 
-
-                }
-                catch(err){
-                    console.log(err); 
-                }
-            }.bind(this));
-
-            socket.on('buildApplication', async function(msg){
+            socket.on('publishApplication', async function(msg){
                 var app = this.applications[msg.app]
-                await app.compile(socket)
-                await app.build(socket)
-            }.bind(this));
 
-            socket.on('editFile', async function(msg){
-                var app = this.applications[msg.app]
-                var buffer = await app.loadFile2(msg.path)
-                socket.emit("editFile", {
-                    path: msg.path,
-                    content: buffer.toString()
-                })
-            }.bind(this));
- 
-            socket.on('editFile3', async function(msg){
-                var projectpath = "/tmp/repos/" + msg.app
-                var buffer = fsextra.readFileSync(projectpath + "/" + msg.path) 
-                socket.emit("editFile", {
-                    path: msg.path,
-                    content: buffer.toString()
-                })
-            }.bind(this));
-
-            socket.on('saveFile', async function(msg){
-                var content = new Buffer(msg.content, 'base64').toString()
-                //await this.mongo.uploadFileOrFolder(msg.app + msg.path, content)
-                //socket.emit("log", "saveFile finished: " + msg.app + msg.path)
- 
-                var app = this.applications[msg.app]
-                await app.updateFileContent(msg._id, content, socket)
-                await app.compile(socket)
-            }.bind(this));
-
-            socket.on('saveFile3', async function(msg){
-                var content = new Buffer(msg.content, 'base64').toString()
-                var projectpath = "/tmp/repos/" + msg.app
-                fsextra.writeFileSync(projectpath + "/" + msg.path, content, { flag: 'w' });
-                socket.emit("log", "saved: " + msg.path)
-                
-                var app = this.applications[msg.app]
                 var success = await app.compile(socket)
                 if (!success) return
 
-                await this.pushApplication(socket, msg.app)
+                await app.push(socket)
+                //await app.build(socket)
+                await app.publish(socket)
             }.bind(this));
 
             socket.on('newFolder', async function(msg){
@@ -206,6 +114,28 @@ export default class Engine {
                 socket.emit("newFile", {
                     file: file
                 })
+            }.bind(this));
+
+            socket.on('editFile', async function(msg){
+                var app = this.applications[msg.app]
+                var buffer = fsextra.readFileSync(app.path + "/" + msg.path) 
+                socket.emit("editFile", {
+                    path: msg.path,
+                    content: buffer.toString()
+                })
+            }.bind(this));
+
+            socket.on('saveFile', async function(msg){
+                var app = this.applications[msg.app]
+                var content = new Buffer(msg.content, 'base64').toString()
+                fsextra.writeFileSync(app.path + "/" + msg.path, content, { flag: 'w' });
+                socket.emit("log", "saved: " + msg.path)
+                
+                var app = this.applications[msg.app]
+                var success = await app.compile(socket)
+                if (!success) return
+
+                //await app.push(socket)
             }.bind(this));
 
             socket.on('getCompletionsAtPosition', function(msg){
@@ -295,7 +225,7 @@ export default class Engine {
 
         this.router.get("/", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
             try{
-                res.redirect('/studio/Static/getFile/index.html');
+                res.redirect('/studio43/Static/getFile/client/index.html');
             }
             catch(err){
                 throw Error(err.message)
@@ -488,15 +418,6 @@ export default class Engine {
         await this.loadApplication(destAppName)
     }
 
-    public getApplicationRepositoryPath(app: string): string {
-        return "/tmp/repos/" + app
-    }
-
-    private async getApplicationRepositorySsh(app: string): Promise<string> {
-        var registry = (await this.db.collection(app).find().toArray())[0]
-        return registry.repository.ssh
-    }
-
     private credentials(url, userName) {
         console.log("Try authenticate: " + userName + "...")
         //if (debug++ > 10) throw "Authentication agent not loaded.";
@@ -522,79 +443,10 @@ export default class Engine {
         return 1;
     }
 
-    private getRemoteCallbacks(): any {
+    public getRemoteCallbacks(): any {
         return {
             //certificateCheck: this.certificateCheck,
             credentials: this.credentials
         }
-    }
-
-    private async cloneApplication(app: string): Promise<any> {
-        var repossh = this.getApplicationRepositorySsh(app)
-        var repopath = this.getApplicationRepositoryPath(app)
-        var cloneOptions = { fetchOpts: { callbacks: this.getRemoteCallbacks() } }
-        var repo = await Git.Clone(repossh, repopath, cloneOptions)
-        console.log("cloned: " + repopath)
-        return repo
-    }
-
-    private async updateApplication(app: string): Promise<any> {
-        var repopath = this.getApplicationRepositoryPath(app)
-        var repo = await Git.Repository.open(repopath) 
-        await repo.fetchAll({ callbacks: this.getRemoteCallbacks() })
-        await repo.mergeBranches("master", "origin/master")
-        console.log("updated: " + repopath)
-        return repo
-    }
- 
-    private async pushApplication(socket: any, app: string) {
-        try{
-            var repopath = this.getApplicationRepositoryPath(app)
-            var repo = await Git.Repository.open(repopath) 
-    
-            await gitkit.config.set(repo, {
-                'user.name': 'John Doe',
-                'user.email': 'johndoe@example.com'
-            })
-
-            var diff = await gitkit.diff(repo)
-            console.log(diff)
-
-            await gitkit.commit(repo, {
-                'message': 'commit message'
-            });
-
-            var log = await gitkit.log(repo)
-            console.log(log)
-
-            //signature
-            var signature = Git.Signature.create("Foo bar", "foo@bar.com", 123456789, 60); //var signature = Signature.default(repo);
-
-            //index
-            //var index = await repo.refreshIndex()
-            //var index = await repo.index()
-            //var a = await index.removeAll()
-            //var a2 =await index.addAll()
-            //var a3 =await index.write()
-            //var oid = await index.writeTree()
-
-            //commit
-            //await repo.createCommit("HEAD", signature, signature, "initial commit", oid, [])
-             
-            //remote
-            var remote = await Git.Remote.lookup(repo, "origin")
-            if (remote == null){
-                var repourl = this.getApplicationRepositorySsh(app)
-                remote = await Git.Remote.create(repo, "origin", repourl)
-            }
-
-            //push
-            await remote.push(["refs/heads/master:refs/heads/master"], { callbacks: this.getRemoteCallbacks() })
-            console.log("pushed: " + repopath);
-            socket.emit("log", "pushed: " + repopath)
-        }
-        catch(err){
-            console.log(err)
-        }
-    }
+    }    
 }
