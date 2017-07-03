@@ -31,15 +31,16 @@ export default class Engine {
     public mongo: MongoFS
     public templateUrl: string
     public gridfs: gridfs.Grid
+    public gitLabAccessToken: string
 
     constructor() {
        
         this.info = {}
         this.applications = {}
         this.cache = new MemoryFileSystem()
-        
         this.templateUrl = "mongodb://guest:guest@ds056549.mlab.com:56549/tauren"
         //this.templateUrl = "mongodb://guest:guest@ds117189.mlab.com:17189/ide"
+        this.gitLabAccessToken = "k5T9xs82anhKt1JKaM39"
     }
 
     public async run() {
@@ -64,7 +65,6 @@ export default class Engine {
         this.io.on('connection', async function(socket) {
             console.log('socket connection')
             
-
            // socket.use((socket, next) => {
            //     let clientId = socket.handshake.headers['x-clientid'];
            //     debugger
@@ -185,11 +185,11 @@ export default class Engine {
             }
         }
 
-        this.info["workingUrl"] = process.env.WORKING_DB_URL
+        this.info["workingUrl"] = process.env.WORKING_DB_URL || ""
 
         if (this.db == null){
             try {
-                this.db = await mongodb.MongoClient.connect(process.env.WORKING_DB_URL)
+                this.db = await mongodb.MongoClient.connect("mongodb://admin:Leonardo19770206Z@ds056549.mlab.com:56549/tauren")//"process.env.WORKING_DB_URL)
 
                 //var workingHost = process.env.WORKING_DB_URL.substring(process.env.WORKING_DB_URL.indexOf('@')+1)
                 //var syncfs = new MongoSyncFS("tauren", this.db)
@@ -418,35 +418,40 @@ export default class Engine {
         await this.loadApplication(destAppName)
     }
 
-    private credentials(url, userName) {
-        console.log("Try authenticate: " + userName + "...")
-        //if (debug++ > 10) throw "Authentication agent not loaded.";
-        //this.Cred.sshKeyMemoryNew(userName, rsapub, rsa).then(function(cred) {
-        //  return cred
-        //});
+    //private credentialsAuthCounter = 0
+    //private credentials(url, userName) {
+    //    this.credentialsAuthCounter++
+    //    if (this.credentialsAuthCounter > 1) throw "Authentication failed.";
 
-        try {
-            var rsapub = fsextra.readFileSync("./id_rsa.pub").toString()
-            var rsa = fsextra.readFileSync("./id_rsa").toString()
-            return Git.Cred.sshKeyMemoryNew(userName, rsapub, rsa, "")
-        }
-        catch(err) { 
-            console.log("Authenticate error: " + err)
-        }
+    //    console.log("Try authenticate: " + this.credentialsAuthCounter + ": " + userName)
+        
+ 
+    //    try {
+            //SSH: Gitlab blocks outgoing ssh port (21)
+            //var rsapub = fsextra.readFileSync("./id_rsa.pub").toString()
+            //var rsa = fsextra.readFileSync("./id_rsa").toString()
+            //return Git.Cred.sshKeyMemoryNew(userName, rsapub, rsa, "")
 
-        //WORKS!!!
-        //return this.Cred.sshKeyNew(userName, "./id_rsa.pub", "./id_rsa", "")
+            //SSH: Gitlab blocks outgoing ssh port (21)
+            //return this.Cred.sshKeyNew(userName, "./id_rsa.pub", "./id_rsa", "")
 
-    }
+            //Access Token
+    //        return Git.Cred.userpassPlaintextNew(userName, this.gitLabAccessToken)
+    //    }
+    //    catch(err) { 
+    //        console.log("Authenticate error: " + err)
+    //    }
+    //}
 
-    private certificateCheck() {
-        return 1;
-    }
+    //private certificateCheck() {
+    //    return 1;
+    //}
 
-    public getRemoteCallbacks(): any {
-        return {
-            //certificateCheck: this.certificateCheck,
-            credentials: this.credentials
-        }
-    }    
+    //public getRemoteCallbacks(): any {
+    //    this.credentialsAuthCounter = 0
+    //    return {
+    //        certificateCheck: this.certificateCheck,
+    //        credentials: this.credentials
+    //    }
+    //}    
 }

@@ -208,6 +208,12 @@ class Application {
             return registry.repository.ssh;
         });
     }
+    getRepositoryUrl() {
+        return __awaiter(this, void 0, void 0, function* () {
+            var registry = (yield this.engine.db.collection(this.name).find().toArray())[0];
+            return registry.repository.url.replace("https://", "https://oauth2:" + this.engine.gitLabAccessToken + "@");
+        });
+    }
     open(socket) {
         return __awaiter(this, void 0, void 0, function* () {
             var repo = null;
@@ -224,18 +230,24 @@ class Application {
     clone(socket) {
         return __awaiter(this, void 0, void 0, function* () {
             socket.emit("log", "cloning...");
-            var repossh = yield this.getRepositorySsh();
-            var cloneOptions = { fetchOpts: { callbacks: this.engine.getRemoteCallbacks() } };
-            var repo = yield Git.Clone(repossh, this.path, cloneOptions);
-            socket.emit("log", "cloned");
-            return repo;
+            try {
+                var repossh = yield this.getRepositoryUrl();
+                var repo = yield Git.Clone(repossh, this.path);
+                socket.emit("log", "cloned");
+                return repo;
+            }
+            catch (err) {
+                console.log(err);
+                socket.emit("log", err.message);
+                throw err;
+            }
         });
     }
     update(socket) {
         return __awaiter(this, void 0, void 0, function* () {
             socket.emit("log", "updating...");
             var repo = yield Git.Repository.open(this.path);
-            yield repo.fetchAll({ callbacks: this.engine.getRemoteCallbacks() });
+            yield repo.fetchAll();
             yield repo.mergeBranches("master", "origin/master");
             socket.emit("log", "updated");
             return repo;
@@ -295,10 +307,10 @@ class Application {
                 var signature = Git.Signature.create("Foo bar", "foo@bar.com", 123456789, 60);
                 var remote = yield Git.Remote.lookup(repo, "origin");
                 if (remote == null) {
-                    var repourl = yield this.getRepositorySsh();
+                    var repourl = yield this.getRepositoryUrl();
                     remote = yield Git.Remote.create(repo, "origin", repourl);
                 }
-                yield remote.push(["refs/heads/master:refs/heads/master"], { callbacks: this.engine.getRemoteCallbacks() });
+                yield remote.push(["refs/heads/master:refs/heads/master"]);
                 socket.emit("log", "pushed");
             }
             catch (err) {

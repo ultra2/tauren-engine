@@ -234,6 +234,11 @@ export default class Application {
         return registry.repository.ssh
     }
 
+    private async getRepositoryUrl(): Promise<string> {
+        var registry = (await this.engine.db.collection(this.name).find().toArray())[0]
+        return registry.repository.url.replace("https://", "https://oauth2:" + this.engine.gitLabAccessToken + "@")
+    }
+
     public async open(socket: any): Promise<any> {
         var repo = null
         if (!fsextra.existsSync(this.path)){
@@ -248,17 +253,25 @@ export default class Application {
 
     public async clone(socket: any): Promise<any> {
         socket.emit("log", "cloning...")
-        var repossh = await this.getRepositorySsh()
-        var cloneOptions = { fetchOpts: { callbacks: this.engine.getRemoteCallbacks() } }
-        var repo = await Git.Clone(repossh, this.path, cloneOptions)
-        socket.emit("log", "cloned")
-        return repo
+        try {
+            var repossh = await this.getRepositoryUrl()
+            //var cloneOptions = { fetchOpts: { callbacks: this.engine.getRemoteCallbacks() } }
+            var repo = await Git.Clone(repossh, this.path)
+            socket.emit("log", "cloned")
+            return repo
+        }
+        catch(err){
+            console.log(err)
+            socket.emit("log", err.message)
+            throw err
+        }
     }
 
     public async update(socket: any): Promise<any> {
         socket.emit("log", "updating...")
         var repo = await Git.Repository.open(this.path) 
-        await repo.fetchAll({ callbacks: this.engine.getRemoteCallbacks() })
+        //await repo.fetchAll({ callbacks: this.engine.getRemoteCallbacks() })
+        await repo.fetchAll()
         await repo.mergeBranches("master", "origin/master")
         socket.emit("log", "updated")
         return repo
@@ -339,12 +352,13 @@ export default class Application {
             //remote
             var remote = await Git.Remote.lookup(repo, "origin")
             if (remote == null){
-                var repourl = await this.getRepositorySsh()
+                var repourl = await this.getRepositoryUrl()
                 remote = await Git.Remote.create(repo, "origin", repourl)
             }
 
             //push
-            await remote.push(["refs/heads/master:refs/heads/master"], { callbacks: this.engine.getRemoteCallbacks() })
+            //await remote.push(["refs/heads/master:refs/heads/master"], { callbacks: this.engine.getRemoteCallbacks() })
+            await remote.push(["refs/heads/master:refs/heads/master"])
             socket.emit("log", "pushed")
         }
         catch(err){

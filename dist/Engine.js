@@ -28,6 +28,7 @@ class Engine {
         this.applications = {};
         this.cache = new MemoryFileSystem();
         this.templateUrl = "mongodb://guest:guest@ds056549.mlab.com:56549/tauren";
+        this.gitLabAccessToken = "k5T9xs82anhKt1JKaM39";
     }
     run() {
         return __awaiter(this, void 0, void 0, function* () {
@@ -145,10 +146,10 @@ class Engine {
                     process.env.WORKING_DB_URL = 'mongodb://' + mongoUser + ':' + mongoPassword + '@' + mongoHost + ':' + mongoPort + '/' + mongoDatabase;
                 }
             }
-            this.info["workingUrl"] = process.env.WORKING_DB_URL;
+            this.info["workingUrl"] = process.env.WORKING_DB_URL || "";
             if (this.db == null) {
                 try {
-                    this.db = yield mongodb.MongoClient.connect(process.env.WORKING_DB_URL);
+                    this.db = yield mongodb.MongoClient.connect("mongodb://admin:Leonardo19770206Z@ds056549.mlab.com:56549/tauren");
                     console.log("WORKING Mongo initialized!");
                     this.info["workingDBConnected"] = true;
                 }
@@ -375,25 +376,6 @@ class Engine {
             yield this.db.collection(destAppName + ".chunks").insertMany(chunks);
             yield this.loadApplication(destAppName);
         });
-    }
-    credentials(url, userName) {
-        console.log("Try authenticate: " + userName + "...");
-        try {
-            var rsapub = fsextra.readFileSync("./id_rsa.pub").toString();
-            var rsa = fsextra.readFileSync("./id_rsa").toString();
-            return Git.Cred.sshKeyMemoryNew(userName, rsapub, rsa, "");
-        }
-        catch (err) {
-            console.log("Authenticate error: " + err);
-        }
-    }
-    certificateCheck() {
-        return 1;
-    }
-    getRemoteCallbacks() {
-        return {
-            credentials: this.credentials
-        };
     }
 }
 exports.default = Engine;
