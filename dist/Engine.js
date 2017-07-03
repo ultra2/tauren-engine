@@ -75,6 +75,12 @@ class Engine {
                             yield app.publish(socket);
                         });
                     }.bind(this));
+                    socket.on('npminstallApplication', function (msg) {
+                        return __awaiter(this, void 0, void 0, function* () {
+                            var app = this.applications[msg.app];
+                            app.npminstall(socket);
+                        });
+                    }.bind(this));
                     socket.on('newFolder', function (msg) {
                         return __awaiter(this, void 0, void 0, function* () {
                             var app = this.applications[msg.app];
@@ -110,9 +116,7 @@ class Engine {
                             fsextra.writeFileSync(app.path + "/" + msg.path, content, { flag: 'w' });
                             socket.emit("log", "saved: " + msg.path);
                             var app = this.applications[msg.app];
-                            var success = yield app.compile(socket);
-                            if (!success)
-                                return;
+                            app.compile(socket);
                         });
                     }.bind(this));
                     socket.on('getCompletionsAtPosition', function (msg) {

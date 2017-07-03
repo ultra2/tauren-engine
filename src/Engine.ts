@@ -64,7 +64,7 @@ export default class Engine {
 
         this.io.on('connection', async function(socket) {
             console.log('socket connection')
-            
+
            // socket.use((socket, next) => {
            //     let clientId = socket.handshake.headers['x-clientid'];
            //     debugger
@@ -100,6 +100,11 @@ export default class Engine {
                 await app.publish(socket)
             }.bind(this));
 
+            socket.on('npminstallApplication', async function(msg){
+                var app = this.applications[msg.app]
+                app.npminstall(socket)
+            }.bind(this));
+
             socket.on('newFolder', async function(msg){
                 var app = this.applications[msg.app]
                 var file = app.newFolder(msg, socket)
@@ -132,10 +137,7 @@ export default class Engine {
                 socket.emit("log", "saved: " + msg.path)
                 
                 var app = this.applications[msg.app]
-                var success = await app.compile(socket)
-                if (!success) return
-
-                //await app.push(socket)
+                app.compile(socket)
             }.bind(this));
 
             socket.on('getCompletionsAtPosition', function(msg){

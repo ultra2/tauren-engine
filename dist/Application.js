@@ -184,24 +184,6 @@ class Application {
             }
         });
     }
-    createTree() {
-        return __awaiter(this, void 0, void 0, function* () {
-            this.filesArray = yield this.engine.db.collection(this.name + ".files").find().toArray();
-            this.filesRoot = this.filesArray.filter(file => file.metadata.parent_id === null)[0];
-            this.createTreeChildren(this.filesRoot, '');
-        });
-    }
-    createTreeChildren(node, path) {
-        node.path = path;
-        if (node.contentType == "text/directory") {
-            node.children = this.filesArray.filter(file => file.metadata.parent_id === node._id);
-            for (var i in node.children) {
-                var child = node.children[i];
-                var childPath = (node.path) ? node.path + '/' + child.filename : child.filename;
-                this.createTreeChildren(child, childPath);
-            }
-        }
-    }
     getRepositorySsh() {
         return __awaiter(this, void 0, void 0, function* () {
             var registry = (yield this.engine.db.collection(this.name).find().toArray())[0];
@@ -219,11 +201,11 @@ class Application {
             var repo = null;
             if (!fsextra.existsSync(this.path)) {
                 repo = yield this.clone(socket);
+                yield this.npminstall(socket);
             }
             else {
                 repo = yield this.update(socket);
             }
-            yield this.npminstall(socket);
             return repo;
         });
     }
@@ -248,7 +230,8 @@ class Application {
             socket.emit("log", "updating...");
             var repo = yield Git.Repository.open(this.path);
             yield repo.fetchAll();
-            yield repo.mergeBranches("master", "origin/master");
+            var signature = this.getSignature();
+            yield repo.mergeBranches("master", "origin/master", signature, null, { fileFavor: Git.Merge.FILE_FAVOR.THEIRS });
             socket.emit("log", "updated");
             return repo;
         });
@@ -304,7 +287,6 @@ class Application {
                 });
                 var log = yield gitkit.log(repo);
                 console.log(log);
-                var signature = Git.Signature.create("Foo bar", "foo@bar.com", 123456789, 60);
                 var remote = yield Git.Remote.lookup(repo, "origin");
                 if (remote == null) {
                     var repourl = yield this.getRepositoryUrl();
@@ -317,6 +299,9 @@ class Application {
                 console.log(err);
             }
         });
+    }
+    getSignature() {
+        return Git.Signature.create("Foo bar", "foo@bar.com", 123456789, 60);
     }
     getCompletionsAtPosition(msg) {
         const completions = this.languageService.getCompletionsAtPosition(msg.filePath, msg.position);
@@ -389,43 +374,55 @@ class Application {
         return __awaiter(this, void 0, void 0, function* () {
             if (socket)
                 socket.emit("log", "Publish started...");
-            yield this.publishFile("dist", socket);
+            var paths = [];
+            this.publishNode("dist", paths, socket);
+            yield Promise.all(paths.map((path) => __awaiter(this, void 0, void 0, function* () { yield this.publishFile(path, socket); })));
             if (socket)
                 socket.emit("log", "Publish success.");
         });
     }
+    publishNode(path, paths, socket) {
+        var stat = fsextra.lstatSync(this.path + '/' + path);
+        if (stat.isFile()) {
+            paths.push(path);
+            return;
+        }
+        if (stat.isDirectory()) {
+            var children = fsextra.readdirSync(this.path + '/' + path);
+            for (var i in children) {
+                var child = children[i];
+                if (child[0] == '.')
+                    continue;
+                var childPath = (path) ? path + '/' + child : child;
+                this.publishNode(childPath, paths, socket);
+            }
+            return;
+        }
+    }
     publishFile(path, socket) {
         return __awaiter(this, void 0, void 0, function* () {
-            var stat = fsextra.lstatSync(this.path + '/' + path);
-            if (stat.isFile()) {
-                var buffer = fsextra.readFileSync(this.path + '/' + path);
-                var pathToSave = path.substr(5);
-                yield this.dbSaveFile(pathToSave, buffer, socket);
-            }
-            if (stat.isDirectory()) {
-                var children = fsextra.readdirSync(this.path + '/' + path);
-                for (var i in children) {
-                    var child = children[i];
-                    if (child[0] == '.')
-                        continue;
-                    var childPath = (path) ? path + '/' + child : child;
-                    yield this.publishFile(childPath, socket);
-                }
-            }
+            var buffer = fsextra.readFileSync(this.path + '/' + path);
+            var pathToSave = path.substr(5);
+            yield this.dbSaveFile(pathToSave, buffer, socket);
         });
     }
     loadFile(path) {
         var result = new model.fileInfo();
         result.buffer = fsextra.readFileSync(this.path + '/' + path);
         result.contentType = mime.lookup(path);
+        this.engine.io.sockets.emit('log', path + " load: " + result.buffer.toString().length);
         return result;
     }
     getScriptVersion(fileName) {
         var stat = fsextra.lstatSync(this.path + "/" + fileName);
-        return stat.mtime.toString();
+        var result = stat.mtime.toString();
+        this.engine.io.sockets.emit('log', path + ": " + result);
+        return result;
     }
     isFileExists(path) {
-        return fsextra.existsSync(this.path + "/" + path);
+        var result = fsextra.existsSync(this.path + "/" + path);
+        this.engine.io.sockets.emit('log', path + ": " + result);
+        return result;
     }
     newFolder(msg, socket) {
         fsextra.mkdirpSync(this.path + '/' + msg.path);

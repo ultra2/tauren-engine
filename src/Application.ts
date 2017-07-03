@@ -211,23 +211,23 @@ export default class Application {
         }    
     }
 
-    public async createTree(){
-        this.filesArray = await this.engine.db.collection(this.name + ".files").find().toArray()
-        this.filesRoot = this.filesArray.filter(file => file.metadata.parent_id === null)[0]
-        this.createTreeChildren(this.filesRoot, '')
-    }
+   //public async createTree(){
+   //     this.filesArray = await this.engine.db.collection(this.name + ".files").find().toArray()
+   //     this.filesRoot = this.filesArray.filter(file => file.metadata.parent_id === null)[0]
+   //     this.createTreeChildren(this.filesRoot, '')
+   // }
 
-    public createTreeChildren(node, path){
-        node.path = path
-        if (node.contentType == "text/directory"){
-            node.children = this.filesArray.filter(file => file.metadata.parent_id === node._id)
-            for (var i in node.children) {
-                var child = node.children[i] 
-                var childPath = (node.path) ? node.path + '/' + child.filename : child.filename
-                this.createTreeChildren(child, childPath)
-            }
-        }
-    }
+   // public createTreeChildren(node, path){
+   //     node.path = path
+   //     if (node.contentType == "text/directory"){
+   //         node.children = this.filesArray.filter(file => file.metadata.parent_id === node._id)
+   //         for (var i in node.children) {
+   //             var child = node.children[i] 
+   //             var childPath = (node.path) ? node.path + '/' + child.filename : child.filename
+   //             this.createTreeChildren(child, childPath)
+   //         }
+   //     }
+   // }
 
     private async getRepositorySsh(): Promise<string> {
         var registry = (await this.engine.db.collection(this.name).find().toArray())[0]
@@ -243,11 +243,11 @@ export default class Application {
         var repo = null
         if (!fsextra.existsSync(this.path)){
             repo = await this.clone(socket)
+            await this.npminstall(socket)
         }
         else{
             repo = await this.update(socket)
         }
-        await this.npminstall(socket)
         return repo
     }
 
@@ -272,7 +272,9 @@ export default class Application {
         var repo = await Git.Repository.open(this.path) 
         //await repo.fetchAll({ callbacks: this.engine.getRemoteCallbacks() })
         await repo.fetchAll()
-        await repo.mergeBranches("master", "origin/master")
+        //var signature = Signature.default(repo);
+        var signature = this.getSignature()
+        await repo.mergeBranches("master", "origin/master", signature, null, { fileFavor: Git.Merge.FILE_FAVOR.THEIRS })
         socket.emit("log", "updated")
         return repo
     }
@@ -335,9 +337,6 @@ export default class Application {
             var log = await gitkit.log(repo)
             console.log(log)
 
-            //signature
-            var signature = Git.Signature.create("Foo bar", "foo@bar.com", 123456789, 60); //var signature = Signature.default(repo);
-
             //index
             //var index = await repo.refreshIndex()
             //var index = await repo.index()
@@ -364,6 +363,10 @@ export default class Application {
         catch(err){
             console.log(err)
         }
+    }
+
+    public getSignature(){
+        return Git.Signature.create("Foo bar", "foo@bar.com", 123456789, 60);
     }
 
     public getCompletionsAtPosition(msg) {
@@ -459,7 +462,10 @@ export default class Application {
     public async publish(socket): Promise<void> {
         if (socket) socket.emit("log", "Publish started...")
 
-        await this.publishFile("dist", socket)
+        var paths: Array<string> = []
+        this.publishNode("dist", paths, socket)
+
+        await Promise.all(paths.map(async path => { await this.publishFile(path, socket) }))
 
     //    var buffer = fsextra.readFileSync(config.output.path + '/' + config.output.filename)
     //    await this.engine.mongo.uploadFileOrFolder(config.output.path.substr('/tmp/virtual/'.length) + '/' + config.output.filename, buffer) 
@@ -467,16 +473,12 @@ export default class Application {
         if (socket) socket.emit("log", "Publish success.")
     }
 
-    public async publishFile(path: string, socket: any): Promise<void> {
+    public publishNode(path: string, paths: Array<string>, socket: any) {
         var stat = fsextra.lstatSync(this.path + '/' + path)
 
         if (stat.isFile()) {
-            var buffer = fsextra.readFileSync(this.path + '/' + path)
-
-            var pathToSave = path.substr(5) //remove 'dist/', we dont need it in db
-            await this.dbSaveFile(pathToSave, buffer, socket)
-            
-            //if (socket) socket.emit("log", "Publish file: " + path)
+            paths.push(path)
+            return
         }
 
         if (stat.isDirectory()){
@@ -487,25 +489,38 @@ export default class Application {
                 if (child[0] == '.') continue
 
                 var childPath = (path) ? path + '/' + child : child
-                await this.publishFile(childPath, socket)
+                this.publishNode(childPath, paths, socket)
             }
+            return
         }
+    }
+
+    public async publishFile(path: string, socket: any): Promise<void> {
+        var buffer = fsextra.readFileSync(this.path + '/' + path)
+        var pathToSave = path.substr(5) //remove 'dist/', we dont need it in db
+        await this.dbSaveFile(pathToSave, buffer, socket)
+        //if (socket) socket.emit("log", "Publish file: " + path)
     }
  
     public loadFile(path: string): any {
         var result = new model.fileInfo()
         result.buffer = fsextra.readFileSync(this.path + '/' + path) 
         result.contentType = mime.lookup(path)
+        this.engine.io.sockets.emit('log', path + " load: " + result.buffer.toString().length)
         return result
     }
 
     public getScriptVersion(fileName: string): string{
         var stat = fsextra.lstatSync(this.path + "/" + fileName)
-        return stat.mtime.toString()
+        var result = stat.mtime.toString()
+        this.engine.io.sockets.emit('log', path + ": " + result)
+        return result
     }
 
     public isFileExists(path: string): boolean {
-        return fsextra.existsSync(this.path + "/" + path)
+        var result = fsextra.existsSync(this.path + "/" + path)
+        this.engine.io.sockets.emit('log', path + ": " + result)
+        return result
     }
 
     //public async dbUpdateFileContentById(_id: string, content: any, socket?: any) {

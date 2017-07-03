@@ -28,12 +28,6 @@ class LanguageServiceHost {
         return "";
     }
     getCompilationSettings() {
-        var path = '/config/tsconfig.json';
-        if (this.app.isFileExists(path)) {
-            var tsconfig = this.app.loadFile(path).buffer.toString();
-            var result = JSON.parse(tsconfig);
-            return result;
-        }
         return {
             outFile: "dist/main-all.js",
             noEmitOnError: true,

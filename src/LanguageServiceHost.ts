@@ -33,7 +33,7 @@ export default class LanguageServiceHost implements ts.LanguageServiceHost {
     }
 
     if (!this.app.isFileExists(fileName)) {
-      //console.log("fs: not exists: " + fileName)
+      //console.log("fs: not exists: " + fileName) 
       return undefined
     }
  
@@ -46,12 +46,12 @@ export default class LanguageServiceHost implements ts.LanguageServiceHost {
   }
 
   getCompilationSettings(): ts.CompilerOptions {
-    var path = '/config/tsconfig.json'
-    if (this.app.isFileExists(path)){
-      var tsconfig = this.app.loadFile(path).buffer.toString()
-      var result = JSON.parse(tsconfig)
-      return result
-    }
+    //var path = '/config/tsconfig.json'
+    //if (this.app.isFileExists(path)){
+    //  var tsconfig = this.app.loadFile(path).buffer.toString()
+    //  var result = JSON.parse(tsconfig)
+    //  return result
+    //}
     
     return { 
         outFile: "dist/main-all.js",
