@@ -28,6 +28,7 @@ class Engine {
         this.applications = {};
         this.cache = new MemoryFileSystem();
         this.templateUrl = "mongodb://guest:guest@ds056549.mlab.com:56549/tauren";
+        this.workingUrl = "mongodb://admin:Leonardo19770206Z@ds056549.mlab.com:56549/tauren";
         this.gitLabAccessToken = "k5T9xs82anhKt1JKaM39";
     }
     run() {
@@ -38,7 +39,6 @@ class Engine {
             this.mongo = new MongoFS_1.default(this.db);
             this.gridfs = gridfs(this.db, mongodb);
             yield this.loadApplications();
-            yield this.updateStudio();
         });
     }
     initApp() {
@@ -135,46 +135,27 @@ class Engine {
             this.app.use(bodyParser.raw({ type: 'application/vnd.custom-type' }));
             this.app.use(bodyParser.text({ type: 'text/*', limit: '5mb' }));
             this.app.use(this.router);
-            var port = process.env.PORT || process.env.OPENSHIFT_NODEJS_PORT || 8080;
-            var ip = process.env.IP || process.env.OPENSHIFT_NODEJS_IP || '0.0.0.0';
-            this.server.listen(port, ip, function () {
-                console.log('Express started on %s:%d ...', ip, port);
+            var host = "0.0.0.0";
+            var port = 8080;
+            this.server.listen(port, host, function () {
+                console.log('Express started on %s:%d ...', host, port);
             });
         });
     }
     initMongo() {
         return __awaiter(this, void 0, void 0, function* () {
-            if ((process.env.WORKING_DB_URL == null || process.env.WORKING_DB_URL == "") && process.env.DATABASE_SERVICE_NAME) {
-                var mongoServiceName = process.env.DATABASE_SERVICE_NAME.toUpperCase(), mongoHost = process.env[mongoServiceName + '_SERVICE_HOST'], mongoPort = process.env[mongoServiceName + '_SERVICE_PORT'], mongoDatabase = process.env[mongoServiceName + '_DATABASE'], mongoPassword = process.env[mongoServiceName + '_PASSWORD'], mongoUser = process.env[mongoServiceName + '_USER'];
-                if (mongoHost && mongoPort && mongoDatabase) {
-                    process.env.WORKING_DB_URL = 'mongodb://' + mongoUser + ':' + mongoPassword + '@' + mongoHost + ':' + mongoPort + '/' + mongoDatabase;
-                }
-            }
-            this.info["workingUrl"] = process.env.WORKING_DB_URL || "";
-            if (this.db == null) {
-                try {
-                    this.db = yield mongodb.MongoClient.connect("mongodb://admin:Leonardo19770206Z@ds056549.mlab.com:56549/tauren");
-                    console.log("WORKING Mongo initialized!");
-                    this.info["workingDBConnected"] = true;
-                }
-                catch (err) {
-                    console.log('WORKING Mongo error: ', err.message);
-                    this.info["workingDBConnected"] = false;
-                }
-            }
-        });
-    }
-    updateStudio() {
-        return __awaiter(this, void 0, void 0, function* () {
-            this.info["studioUpdated"] = false;
-            if (this.db == null)
+            if (this.db != null)
                 return;
-            var workingHost = process.env.WORKING_DB_URL.substring(process.env.WORKING_DB_URL.indexOf('@') + 1);
-            var templateHost = this.templateUrl.substring(this.templateUrl.indexOf('@') + 1);
-            if (workingHost == templateHost)
-                return;
-            yield this.copyApplicationFromDatabase(this.templateUrl, "studio", "studio");
-            this.info["studioUpdated"] = true;
+            try {
+                this.db = yield mongodb.MongoClient.connect(this.workingUrl);
+                this.info["workingUrl"] = this.workingUrl.substring(this.workingUrl.indexOf('@') + 1);
+                console.log("WORKING Mongo initialized!");
+                this.info["workingDBConnected"] = true;
+            }
+            catch (err) {
+                console.log('WORKING Mongo error: ', err.message);
+                this.info["workingDBConnected"] = false;
+            }
         });
     }
     initRouter() {

@@ -29,8 +29,9 @@ export default class Engine {
     public app: express.Application
     public cache: MemoryFileSystem
     public mongo: MongoFS
-    public templateUrl: string
     public gridfs: gridfs.Grid
+    public workingUrl: string
+    public templateUrl: string
     public gitLabAccessToken: string
 
     constructor() {
@@ -40,6 +41,7 @@ export default class Engine {
         this.cache = new MemoryFileSystem()
         this.templateUrl = "mongodb://guest:guest@ds056549.mlab.com:56549/tauren"
         //this.templateUrl = "mongodb://guest:guest@ds117189.mlab.com:17189/ide"
+        this.workingUrl = "mongodb://admin:Leonardo19770206Z@ds056549.mlab.com:56549/tauren"
         this.gitLabAccessToken = "k5T9xs82anhKt1JKaM39"
     }
 
@@ -52,7 +54,7 @@ export default class Engine {
         this.gridfs = gridfs(this.db, mongodb);
 
         await this.loadApplications()
-        await this.updateStudio()
+        //await this.updateStudio()
     }
 
     private async initApp() {
@@ -165,62 +167,42 @@ export default class Engine {
         //    next(err);
         //});
 
-        var port = process.env.PORT || process.env.OPENSHIFT_NODEJS_PORT || 8080
-        var ip   = process.env.IP   || process.env.OPENSHIFT_NODEJS_IP || '0.0.0.0'
+        var host:string = "0.0.0.0"
+        var port:number = 8080
 
-        this.server.listen(port, ip, function() {
-            console.log('Express started on %s:%d ...', ip, port);
+        this.server.listen(port, host, function() {
+            console.log('Express started on %s:%d ...', host, port);
         });
     }
 
     private async initMongo() {
-        if ((process.env.WORKING_DB_URL == null || process.env.WORKING_DB_URL == "") && process.env.DATABASE_SERVICE_NAME) {
-            var mongoServiceName = process.env.DATABASE_SERVICE_NAME.toUpperCase(),
-                mongoHost = process.env[mongoServiceName + '_SERVICE_HOST'],
-                mongoPort = process.env[mongoServiceName + '_SERVICE_PORT'],
-                mongoDatabase = process.env[mongoServiceName + '_DATABASE'],
-                mongoPassword = process.env[mongoServiceName + '_PASSWORD'],
-                mongoUser = process.env[mongoServiceName + '_USER'];
-
-            if (mongoHost && mongoPort && mongoDatabase) {
-                process.env.WORKING_DB_URL = 'mongodb://' + mongoUser + ':' + mongoPassword + '@' + mongoHost + ':' +  mongoPort + '/' + mongoDatabase
-            }
+        if (this.db != null) return
+        try {
+            this.db = await mongodb.MongoClient.connect(this.workingUrl)
+            this.info["workingUrl"] = this.workingUrl.substring(this.workingUrl.indexOf('@')+1)
+            console.log("WORKING Mongo initialized!")
+            this.info["workingDBConnected"] = true
         }
-
-        this.info["workingUrl"] = process.env.WORKING_DB_URL || ""
-
-        if (this.db == null){
-            try {
-                this.db = await mongodb.MongoClient.connect("mongodb://admin:Leonardo19770206Z@ds056549.mlab.com:56549/tauren")//"process.env.WORKING_DB_URL)
-
-                //var workingHost = process.env.WORKING_DB_URL.substring(process.env.WORKING_DB_URL.indexOf('@')+1)
-                //var syncfs = new MongoSyncFS("tauren", this.db)
-                //syncfs.loadFS()
-
-                console.log("WORKING Mongo initialized!")
-                this.info["workingDBConnected"] = true
-            }
-            catch (err) { 
-                console.log('WORKING Mongo error: ', err.message)
-                this.info["workingDBConnected"] = false
-            }
+        catch (err) { 
+            console.log('WORKING Mongo error: ', err.message)
+            this.info["workingDBConnected"] = false
         }
     } 
 
-    private async updateStudio(){
-        this.info["studioUpdated"] = false
+    //private async updateStudio(){
+    //    this.info["studioUpdated"] = false
 
-        if (this.db == null) return
+    //    if (this.db == null) return
 
         //we working on prototype studio, so we can't update
-        var workingHost = process.env.WORKING_DB_URL.substring(process.env.WORKING_DB_URL.indexOf('@')+1)
-        var templateHost = this.templateUrl.substring(this.templateUrl.indexOf('@')+1)
-        if (workingHost == templateHost) return
+    //    var workingHost = this.workingUrl.substring(this.workingUrl.indexOf('@')+1)
+    //    var templateHost = this.templateUrl.substring(this.templateUrl.indexOf('@')+1)
+    //    if (workingHost == templateHost) return
         
-        await this.copyApplicationFromDatabase(this.templateUrl, "studio", "studio")
+    //    await this.copyApplicationFromDatabase(this.templateUrl, "studio", "studio")
 
-        this.info["studioUpdated"] = true
-    }
+    //    this.info["studioUpdated"] = true
+    //}
 
     private async initRouter() {
         this.router = express.Router()

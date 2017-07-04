@@ -11,7 +11,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const path = require("path");
 const uuid = require("node-uuid");
 const fsextra = require("fs-extra");
-const mime = require("mime");
 const JSZip = require("jszip");
 const webpack = require("webpack");
 const utils_1 = require("./utils");
@@ -211,11 +210,11 @@ class Application {
     }
     clone(socket) {
         return __awaiter(this, void 0, void 0, function* () {
-            socket.emit("log", "cloning...");
+            socket.emit("log", "clone...");
             try {
                 var repossh = yield this.getRepositoryUrl();
                 var repo = yield Git.Clone(repossh, this.path);
-                socket.emit("log", "cloned");
+                socket.emit("log", "clone success");
                 return repo;
             }
             catch (err) {
@@ -227,18 +226,18 @@ class Application {
     }
     update(socket) {
         return __awaiter(this, void 0, void 0, function* () {
-            socket.emit("log", "updating...");
+            socket.emit("log", "update...");
             var repo = yield Git.Repository.open(this.path);
             yield repo.fetchAll();
             var signature = this.getSignature();
             yield repo.mergeBranches("master", "origin/master", signature, null, { fileFavor: Git.Merge.FILE_FAVOR.THEIRS });
-            socket.emit("log", "updated");
+            socket.emit("log", "update success");
             return repo;
         });
     }
     npminstall(socket) {
         return __awaiter(this, void 0, void 0, function* () {
-            socket.emit("log", "npm install");
+            socket.emit("log", "npm install...");
             var options = {
                 path: this.path,
                 forceInstall: false,
@@ -266,7 +265,7 @@ class Application {
                         socket.emit("log", "npm install: " + err.message);
                     }
                     resolve(result);
-                    socket.emit("log", "npm install: ok");
+                    socket.emit("log", "npm install success");
                 }.bind(this));
             }.bind(this));
         });
@@ -274,7 +273,7 @@ class Application {
     push(socket) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                socket.emit("log", "pushing...");
+                socket.emit("log", "push...");
                 var repo = yield Git.Repository.open(this.path);
                 yield gitkit.config.set(repo, {
                     'user.name': 'John Doe',
@@ -293,7 +292,7 @@ class Application {
                     remote = yield Git.Remote.create(repo, "origin", repourl);
                 }
                 yield remote.push(["refs/heads/master:refs/heads/master"]);
-                socket.emit("log", "pushed");
+                socket.emit("log", "push success");
             }
             catch (err) {
                 console.log(err);
@@ -315,7 +314,7 @@ class Application {
     compile(socket) {
         return __awaiter(this, void 0, void 0, function* () {
             if (socket)
-                socket.emit("log", "Compile started...");
+                socket.emit("log", "compile...");
             let program = this.languageService.getProgram();
             let emitResult = program.emit(undefined, this.WriteFile.bind(this));
             let allDiagnostics = emitResult.diagnostics;
@@ -325,15 +324,19 @@ class Application {
                 socket.emit("log", `${diagnostic.file.fileName} (${line + 1},${character + 1}): ${message}`);
             });
             let success = !emitResult.emitSkipped;
-            let exitCode = success ? "success" : "failed";
-            socket.emit("log", "Compile finished: " + exitCode);
+            if (!success) {
+                socket.emit("log", "compile failed");
+            }
+            else {
+                socket.emit("log", "compile success");
+            }
             return success;
         });
     }
     build(socket) {
         return __awaiter(this, void 0, void 0, function* () {
             if (socket)
-                socket.emit("log", "Build started...");
+                socket.emit("log", "build...");
             return new Promise(function (resolve, reject) {
                 try {
                     var configFile = fsextra.readFileSync(this.path + "/config/webpack.json");
@@ -357,12 +360,12 @@ class Application {
                         if (socket)
                             socket.emit("log", stats.toString());
                         if (stats.hasErrors()) {
-                            socket.emit("log", "Build failed.");
+                            socket.emit("log", "build failed.");
                             resolve();
                             return;
                         }
                         if (socket)
-                            socket.emit("log", "Build success.");
+                            socket.emit("log", "build success.");
                         resolve();
                         return;
                     });
@@ -373,12 +376,12 @@ class Application {
     publish(socket) {
         return __awaiter(this, void 0, void 0, function* () {
             if (socket)
-                socket.emit("log", "Publish started...");
+                socket.emit("log", "publish...");
             var paths = [];
             this.publishNode("dist", paths, socket);
             yield Promise.all(paths.map((path) => __awaiter(this, void 0, void 0, function* () { yield this.publishFile(path, socket); })));
             if (socket)
-                socket.emit("log", "Publish success.");
+                socket.emit("log", "publish success.");
         });
     }
     publishNode(path, paths, socket) {
@@ -409,19 +412,16 @@ class Application {
     loadFile(path) {
         var result = new model.fileInfo();
         result.buffer = fsextra.readFileSync(this.path + '/' + path);
-        result.contentType = mime.lookup(path);
-        this.engine.io.sockets.emit('log', path + " load: " + result.buffer.toString().length);
+        result.contentType = utils_1.default.getMime(path);
         return result;
     }
     getScriptVersion(fileName) {
         var stat = fsextra.lstatSync(this.path + "/" + fileName);
         var result = stat.mtime.toString();
-        this.engine.io.sockets.emit('log', path + ": " + result);
         return result;
     }
     isFileExists(path) {
         var result = fsextra.existsSync(this.path + "/" + path);
-        this.engine.io.sockets.emit('log', path + ": " + result);
         return result;
     }
     newFolder(msg, socket) {

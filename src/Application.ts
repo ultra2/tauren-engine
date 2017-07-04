@@ -5,7 +5,6 @@ import * as path from 'path'
 import * as uuid from "node-uuid"
 import * as fsextra from 'fs-extra'
 import * as mongodb from "mongodb"
-import * as mime from "mime"
 import * as stream from "stream"
 import * as gridfs from "gridfs-stream"
 import * as JSZip from 'jszip'
@@ -252,12 +251,12 @@ export default class Application {
     }
 
     public async clone(socket: any): Promise<any> {
-        socket.emit("log", "cloning...")
+        socket.emit("log", "clone...")
         try {
             var repossh = await this.getRepositoryUrl()
             //var cloneOptions = { fetchOpts: { callbacks: this.engine.getRemoteCallbacks() } }
             var repo = await Git.Clone(repossh, this.path)
-            socket.emit("log", "cloned")
+            socket.emit("log", "clone success")
             return repo
         }
         catch(err){
@@ -268,19 +267,19 @@ export default class Application {
     }
 
     public async update(socket: any): Promise<any> {
-        socket.emit("log", "updating...")
+        socket.emit("log", "update...")
         var repo = await Git.Repository.open(this.path) 
         //await repo.fetchAll({ callbacks: this.engine.getRemoteCallbacks() })
         await repo.fetchAll()
         //var signature = Signature.default(repo);
         var signature = this.getSignature()
         await repo.mergeBranches("master", "origin/master", signature, null, { fileFavor: Git.Merge.FILE_FAVOR.THEIRS })
-        socket.emit("log", "updated")
+        socket.emit("log", "update success")
         return repo
     }
 
     public async npminstall(socket: any) {
-        socket.emit("log", "npm install")
+        socket.emit("log", "npm install...")
         var options = {
 	        //name: 'react-split-pane',	// your module name
             //version: '3.10.9',		// expected version [default: 'latest']
@@ -311,14 +310,14 @@ export default class Application {
                     socket.emit("log", "npm install: " + err.message)
                 }
                 resolve(result)
-                socket.emit("log", "npm install: ok")
+                socket.emit("log", "npm install success")
             }.bind(this));
         }.bind(this))
     }
 
     public async push(socket: any) {
         try{
-            socket.emit("log", "pushing...")
+            socket.emit("log", "push...")
 
             var repo = await Git.Repository.open(this.path) 
     
@@ -358,7 +357,7 @@ export default class Application {
             //push
             //await remote.push(["refs/heads/master:refs/heads/master"], { callbacks: this.engine.getRemoteCallbacks() })
             await remote.push(["refs/heads/master:refs/heads/master"])
-            socket.emit("log", "pushed")
+            socket.emit("log", "push success")
         }
         catch(err){
             console.log(err)
@@ -393,7 +392,7 @@ export default class Application {
 
     public async compile(socket): Promise<any> {
         
-        if (socket) socket.emit("log", "Compile started...")
+        if (socket) socket.emit("log", "compile...")
 
         let program = this.languageService.getProgram()
 
@@ -411,14 +410,17 @@ export default class Application {
  
         let success = !emitResult.emitSkipped
 
-        let exitCode = success ? "success" : "failed"
-        socket.emit("log", "Compile finished: " + exitCode)
+        if (!success){
+            socket.emit("log", "compile failed")
+        }else{
+            socket.emit("log", "compile success")
+        }
 
         return success
     }
 
     public async build(socket): Promise<void> {
-        if (socket) socket.emit("log", "Build started...")
+        if (socket) socket.emit("log", "build...")
 
         return new Promise<void>(function (resolve, reject) {
 
@@ -445,12 +447,12 @@ export default class Application {
                 if (socket) socket.emit("log", stats.toString())
                 
                 if (stats.hasErrors()){
-                    socket.emit("log", "Build failed.")
+                    socket.emit("log", "build failed.")
                     resolve()
                     return
                 }
                 
-                if (socket) socket.emit("log", "Build success.")
+                if (socket) socket.emit("log", "build success.")
                 resolve()
                 return
 
@@ -460,7 +462,7 @@ export default class Application {
     }
 
     public async publish(socket): Promise<void> {
-        if (socket) socket.emit("log", "Publish started...")
+        if (socket) socket.emit("log", "publish...")
 
         var paths: Array<string> = []
         this.publishNode("dist", paths, socket)
@@ -470,7 +472,7 @@ export default class Application {
     //    var buffer = fsextra.readFileSync(config.output.path + '/' + config.output.filename)
     //    await this.engine.mongo.uploadFileOrFolder(config.output.path.substr('/tmp/virtual/'.length) + '/' + config.output.filename, buffer) 
         
-        if (socket) socket.emit("log", "Publish success.")
+        if (socket) socket.emit("log", "publish success.")
     }
 
     public publishNode(path: string, paths: Array<string>, socket: any) {
@@ -505,21 +507,21 @@ export default class Application {
     public loadFile(path: string): any {
         var result = new model.fileInfo()
         result.buffer = fsextra.readFileSync(this.path + '/' + path) 
-        result.contentType = mime.lookup(path)
-        this.engine.io.sockets.emit('log', path + " load: " + result.buffer.toString().length)
+        result.contentType = Utils.getMime(path)
+        //this.engine.io.sockets.emit('log', path + " load: " + result.buffer.toString().length)
         return result
     }
 
     public getScriptVersion(fileName: string): string{
         var stat = fsextra.lstatSync(this.path + "/" + fileName)
         var result = stat.mtime.toString()
-        this.engine.io.sockets.emit('log', path + ": " + result)
+        //this.engine.io.sockets.emit('log', path + ": " + result)
         return result
     }
 
     public isFileExists(path: string): boolean {
         var result = fsextra.existsSync(this.path + "/" + path)
-        this.engine.io.sockets.emit('log', path + ": " + result)
+        //this.engine.io.sockets.emit('log', path + ": " + result)
         return result
     }
 

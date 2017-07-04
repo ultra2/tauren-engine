@@ -29,6 +29,7 @@ export default class LanguageServiceHost implements ts.LanguageServiceHost {
                 
     if (fileName.substring(fileName.length-36) == "node_modules/typescript/lib/lib.d.ts"){
       //console.log("fs: loaded: " + fileName)
+      //this.app.engine.io.sockets.emit('log', fileName + " load: " + fsextra.readFileSync(fileName).toString().length)
       return ts.ScriptSnapshot.fromString(fsextra.readFileSync(fileName).toString())
     }
 
@@ -42,19 +43,19 @@ export default class LanguageServiceHost implements ts.LanguageServiceHost {
   }
 
   getCurrentDirectory(): string{
-    return ""
+    return "."
   }
 
   getCompilationSettings(): ts.CompilerOptions {
-    //var path = '/config/tsconfig.json'
-    //if (this.app.isFileExists(path)){
-    //  var tsconfig = this.app.loadFile(path).buffer.toString()
-    //  var result = JSON.parse(tsconfig)
-    //  return result
-    //}
+    var path = '/config/tsconfig.json'
+    if (this.app.isFileExists(path)){
+      var tsconfig = this.app.loadFile(path).buffer.toString()
+      var result = JSON.parse(tsconfig)
+      return result
+    }
     
     return { 
-        outFile: "dist/main-all.js",
+        outFile: "dist/client/main-all.js",
         noEmitOnError: true, 
         noImplicitAny: false,
         target: ts.ScriptTarget.ES5, 
@@ -66,5 +67,15 @@ export default class LanguageServiceHost implements ts.LanguageServiceHost {
   getDefaultLibFileName(options: ts.CompilerOptions): string{
     return ts.getDefaultLibFilePath(options)
     //return "/node_modules/typescript/lib/" + ts.getDefaultLibFileName(options)
+  }
+
+  readFile?(path: string, encoding?: string): string{
+    //console.log("readFile: " + path) 
+    return this.app.loadFile(path).buffer.toString()
+  }
+  
+  fileExists?(path: string): boolean{
+    //console.log("fileExists: " + path) 
+    return this.app.isFileExists(path)
   }
 }

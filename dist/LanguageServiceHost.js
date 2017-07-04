@@ -25,11 +25,17 @@ class LanguageServiceHost {
         return ts.ScriptSnapshot.fromString(this.app.loadFile(fileName).buffer.toString());
     }
     getCurrentDirectory() {
-        return "";
+        return ".";
     }
     getCompilationSettings() {
+        var path = '/config/tsconfig.json';
+        if (this.app.isFileExists(path)) {
+            var tsconfig = this.app.loadFile(path).buffer.toString();
+            var result = JSON.parse(tsconfig);
+            return result;
+        }
         return {
-            outFile: "dist/main-all.js",
+            outFile: "dist/client/main-all.js",
             noEmitOnError: true,
             noImplicitAny: false,
             target: ts.ScriptTarget.ES5,
@@ -39,6 +45,12 @@ class LanguageServiceHost {
     }
     getDefaultLibFileName(options) {
         return ts.getDefaultLibFilePath(options);
+    }
+    readFile(path, encoding) {
+        return this.app.loadFile(path).buffer.toString();
+    }
+    fileExists(path) {
+        return this.app.isFileExists(path);
     }
 }
 exports.default = LanguageServiceHost;
