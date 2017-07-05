@@ -40,8 +40,10 @@ class Application {
     }
     init() {
         return __awaiter(this, void 0, void 0, function* () {
-            this.languageServiceHost = new LanguageServiceHost_1.default(this);
-            this.languageService = ts.createLanguageService(this.languageServiceHost, ts.createDocumentRegistry());
+            this.languageServiceHostServer = new LanguageServiceHost_1.default(this, "server");
+            this.languageServiceHostClient = new LanguageServiceHost_1.default(this, "client");
+            this.languageServiceServer = ts.createLanguageService(this.languageServiceHostServer, ts.createDocumentRegistry());
+            this.languageServiceClient = ts.createLanguageService(this.languageServiceHostClient, ts.createDocumentRegistry());
             this.loaded = false;
             this.controllers = {};
             try {
@@ -303,7 +305,8 @@ class Application {
         return Git.Signature.create("Foo bar", "foo@bar.com", 123456789, 60);
     }
     getCompletionsAtPosition(msg) {
-        const completions = this.languageService.getCompletionsAtPosition(msg.filePath, msg.position);
+        const languageService = (msg.mode == 'server') ? this.languageServiceServer : this.languageServiceClient;
+        const completions = languageService.getCompletionsAtPosition(msg.filePath, msg.position);
         let completionList = completions || {};
         completionList["entries"] = completionList["entries"] || [];
         let maxSuggestions = 1000;
@@ -311,11 +314,19 @@ class Application {
             completionList["entries"] = completionList["entries"].slice(0, maxSuggestions);
         return completionList;
     }
-    compile(socket) {
+    compile(socket, mode) {
         return __awaiter(this, void 0, void 0, function* () {
+            var serverSuccess = yield this.compileStep(socket, "server");
+            var clientSuccess = yield this.compileStep(socket, "client");
+            return serverSuccess && clientSuccess;
+        });
+    }
+    compileStep(socket, mode) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const languageService = (mode == 'server') ? this.languageServiceServer : this.languageServiceClient;
             if (socket)
-                socket.emit("log", "compile...");
-            let program = this.languageService.getProgram();
+                socket.emit("log", "compile " + mode + "...");
+            let program = languageService.getProgram();
             let emitResult = program.emit(undefined, this.WriteFile.bind(this));
             let allDiagnostics = emitResult.diagnostics;
             allDiagnostics.forEach(diagnostic => {
@@ -325,10 +336,10 @@ class Application {
             });
             let success = !emitResult.emitSkipped;
             if (!success) {
-                socket.emit("log", "compile failed");
+                socket.emit("log", "compile " + mode + " failed");
             }
             else {
-                socket.emit("log", "compile success");
+                socket.emit("log", "compile " + mode + " success");
             }
             return success;
         });

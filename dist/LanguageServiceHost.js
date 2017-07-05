@@ -3,8 +3,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const ts = require("typescript");
 const fsextra = require("fs-extra");
 class LanguageServiceHost {
-    constructor(_app) {
+    constructor(_app, _mode) {
         this.app = _app;
+        this.mode = _mode;
     }
     getScriptFileNames() {
         return ["main.tsx"];
@@ -22,13 +23,26 @@ class LanguageServiceHost {
         if (!this.app.isFileExists(fileName)) {
             return undefined;
         }
-        return ts.ScriptSnapshot.fromString(this.app.loadFile(fileName).buffer.toString());
+        var source = this.app.loadFile(fileName).buffer.toString();
+        var regex = (this.mode == "server") ? /(\/\/#CLIENT)(?! END)/ : /(\/\/#SERVER)(?! END)/;
+        var reg = new RegExp(regex, 'g');
+        var splitted = source.split(reg);
+        var pattern = (this.mode == "server") ? "//#CLIENT" : "//#SERVER";
+        var result = "";
+        for (var i in splitted) {
+            var s = splitted[i];
+            if (s == pattern)
+                continue;
+            var pos = s.indexOf(pattern + " END");
+            result += (pos == -1) ? s : s.substr(pos + 13);
+        }
+        return ts.ScriptSnapshot.fromString(result);
     }
     getCurrentDirectory() {
         return ".";
     }
     getCompilationSettings() {
-        var path = '/config/tsconfig.json';
+        var path = '/config/tsconfig-' + this.mode + '.json';
         if (this.app.isFileExists(path)) {
             var tsconfig = this.app.loadFile(path).buffer.toString();
             var result = JSON.parse(tsconfig);

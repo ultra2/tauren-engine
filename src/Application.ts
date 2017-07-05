@@ -26,13 +26,15 @@ export default class Application {
     private loaded: boolean
     public controllers: any
     public fs = {}
-    public languageServiceHost: LanguageServiceHost
-    public languageService: ts.LanguageService
+    public languageServiceHostServer: LanguageServiceHost
+    public languageServiceHostClient: LanguageServiceHost
+    public languageServiceServer: ts.LanguageService
+    public languageServiceClient: ts.LanguageService
     public paths : string[] = []
     public pathversions: ts.MapLike<{ version: number }> = {}
     public filesRoot: object
     public filesArray: Array<any>
-
+    
     constructor(application: string, engine: Engine) {
         this.name = application
         this.path = "/tmp/repos/" + this.name
@@ -50,8 +52,10 @@ export default class Application {
     }
 
     public async init() {
-        this.languageServiceHost = new LanguageServiceHost(this) //this.createLanguageServiceHost()
-        this.languageService = ts.createLanguageService(this.languageServiceHost, ts.createDocumentRegistry())
+        this.languageServiceHostServer = new LanguageServiceHost(this, "server")
+        this.languageServiceHostClient = new LanguageServiceHost(this, "client")
+        this.languageServiceServer = ts.createLanguageService(this.languageServiceHostServer, ts.createDocumentRegistry())
+        this.languageServiceClient = ts.createLanguageService(this.languageServiceHostClient, ts.createDocumentRegistry())
         this.loaded = false
         this.controllers = {} //namespace
         try {
@@ -369,8 +373,9 @@ export default class Application {
     }
 
     public getCompletionsAtPosition(msg) {
+        const languageService = (msg.mode == 'server') ? this.languageServiceServer : this.languageServiceClient
 
-        const completions: ts.CompletionInfo = this.languageService.getCompletionsAtPosition(msg.filePath, msg.position)
+        const completions: ts.CompletionInfo = languageService.getCompletionsAtPosition(msg.filePath, msg.position)
 
         //TODO: duplikacios hiba javitasa
         //for (var i=0; i<completions.entries.length; i++){
@@ -390,16 +395,21 @@ export default class Application {
         return completionList
     }
 
-    public async compile(socket): Promise<any> {
-        
-        if (socket) socket.emit("log", "compile...")
+    public async compile(socket: any, mode: string): Promise<any> {
+        var serverSuccess = await this.compileStep(socket, "server")
+        var clientSuccess = await this.compileStep(socket, "client")
+        return serverSuccess && clientSuccess 
+    }
 
-        let program = this.languageService.getProgram()
+    public async compileStep(socket: any, mode: string): Promise<any> {
+        const languageService = (mode == 'server') ? this.languageServiceServer : this.languageServiceClient
 
+        if (socket) socket.emit("log", "compile " + mode + "...")
+
+        let program = languageService.getProgram()
         let emitResult = program.emit(undefined, this.WriteFile.bind(this))
- 
-        //let allDiagnostics = ts.getPreEmitDiagnostics(program).concat(emitResult.diagnostics)
 
+        //let allDiagnostics = ts.getPreEmitDiagnostics(program).concat(emitResult.diagnostics)
         let allDiagnostics = emitResult.diagnostics
 
         allDiagnostics.forEach(diagnostic => {
@@ -411,9 +421,9 @@ export default class Application {
         let success = !emitResult.emitSkipped
 
         if (!success){
-            socket.emit("log", "compile failed")
+            socket.emit("log", "compile " + mode + " failed")
         }else{
-            socket.emit("log", "compile success")
+            socket.emit("log", "compile " + mode + " success")
         }
 
         return success

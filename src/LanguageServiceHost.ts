@@ -7,9 +7,11 @@ import Application from "./Application"
 export default class LanguageServiceHost implements ts.LanguageServiceHost {
 
   app: Application
+  mode: string
 
-  constructor(_app: Application) {
+  constructor(_app: Application, _mode: string) {
     this.app = _app;
+    this.mode = _mode
   }
 
   getScriptFileNames(): string[] {
@@ -39,7 +41,22 @@ export default class LanguageServiceHost implements ts.LanguageServiceHost {
     }
  
     //console.log("fs: loaded: " + fileName)
-    return ts.ScriptSnapshot.fromString(this.app.loadFile(fileName).buffer.toString())
+    var source = this.app.loadFile(fileName).buffer.toString()
+    var regex = (this.mode == "server") ? /(\/\/#CLIENT)(?! END)/ : /(\/\/#SERVER)(?! END)/
+    var reg = new RegExp(regex, 'g')
+    var splitted = source.split(reg)
+    var pattern = (this.mode == "server") ? "//#CLIENT" : "//#SERVER"
+    var result = ""
+    for (var i in splitted){
+      var s:string = splitted[i]
+      if (s == pattern) continue
+      var pos = s.indexOf(pattern + " END")
+      result += (pos == -1) ? s : s.substr(pos + 13)
+    }
+    
+    //var regex = (this.mode == "server") ? /(\/\/#CLIENT)([.\S\s]*)(\/\/#CLIENT END)/ : /(\/\/#SERVER)([.\S\s]*)(\/\/#SERVER END)/
+    //var source2 = source.replace(new RegExp(regex, 'g'), "");
+    return ts.ScriptSnapshot.fromString(result)
   }
 
   getCurrentDirectory(): string{
@@ -47,7 +64,7 @@ export default class LanguageServiceHost implements ts.LanguageServiceHost {
   }
 
   getCompilationSettings(): ts.CompilerOptions {
-    var path = '/config/tsconfig.json'
+    var path = '/config/tsconfig-' + this.mode + '.json'
     if (this.app.isFileExists(path)){
       var tsconfig = this.app.loadFile(path).buffer.toString()
       var result = JSON.parse(tsconfig)
