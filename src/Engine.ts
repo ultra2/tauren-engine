@@ -73,6 +73,16 @@ export default class Engine {
            //     return next();
            // });
 
+            if (socket.handshake.query.app == 'studio44'){
+                socket.use((params, next) => {
+                    var app = this.applications[socket.handshake.query.app]
+                    var message = params[0]
+                    var data = params[1]
+                    app.on(message, data, socket)
+                    return next();
+                })
+            }
+        
             socket.on('disconnect', function(){
                 console.log('socket disconnect');
             }.bind(this));
@@ -80,79 +90,79 @@ export default class Engine {
             socket.emit("info", this.info)  
             socket.emit("applications", Object.keys(this.applications))  
 
-            socket.on('openApplication', async function(msg){
-                //var currapp = socket.handshake.query.app
-                var app = this.applications[msg]
-                var repo = await app.open(socket)
-                var root = app.createNode('')
-                socket.emit("application", {
-                    name: app.name,
-                    tree: root
-                }) 
-            }.bind(this));
+            if (socket.handshake.query.app != 'studio44'){
+                socket.on('openApplication', async function(msg){
+                    var app = this.applications[msg]
+                    var repo = await app.open(socket)
+                    var root = app.createNode('')
+                    socket.emit("application", {
+                        name: app.name,
+                        tree: root
+                    }) 
+                }.bind(this));
 
-            socket.on('publishApplication', async function(msg){
-                var app = this.applications[msg.app]
+                socket.on('publishApplication', async function(msg){
+                    var app = this.applications[msg.app]
 
-                var success = await app.compile(socket)
-                if (!success) return
+                    var success = await app.compile(socket)
+                    if (!success) return
 
-                await app.push(socket)
-                //await app.build(socket)
-                await app.publish(socket)
-            }.bind(this));
+                    await app.push(socket)
+                    //await app.build(socket)
+                    await app.publish(socket)
+                }.bind(this));
 
-            socket.on('npminstallApplication', async function(msg){
-                var app = this.applications[msg.app]
-                app.npminstall(socket)
-            }.bind(this));
+                socket.on('npminstallApplication', async function(msg){
+                    var app = this.applications[msg.app]
+                    app.npminstall(socket)
+                }.bind(this));
 
-            socket.on('newFolder', async function(msg){
-                var app = this.applications[msg.app]
-                var file = app.newFolder(msg, socket)
-                socket.emit("newFolder", {
-                    file: file
-                })
-            }.bind(this));
+                socket.on('newFolder', async function(msg){
+                    var app = this.applications[msg.app]
+                    var file = app.newFolder(msg, socket)
+                    socket.emit("newFolder", {
+                        file: file
+                    })
+                }.bind(this));
 
-            socket.on('newFile', async function(msg){
-                var app = this.applications[msg.app]
-                var file = app.newFile(msg, socket)
-                socket.emit("newFile", {
-                    file: file
-                })
-            }.bind(this));
+                socket.on('newFile', async function(msg){
+                    var app = this.applications[msg.app]
+                    var file = app.newFile(msg, socket)
+                    socket.emit("newFile", {
+                        file: file
+                    })
+                }.bind(this));
 
-            socket.on('editFile', async function(msg){
-                var app = this.applications[msg.app]
-                var buffer = fsextra.readFileSync(app.path + "/" + msg.path) 
-                socket.emit("editFile", {
-                    path: msg.path,
-                    content: buffer.toString()
-                })
-            }.bind(this));
+                socket.on('editFile', async function(msg){
+                    var app = this.applications[msg.app]
+                    var buffer = fsextra.readFileSync(app.path + "/" + msg.path) 
+                    socket.emit("editFile", {
+                        path: msg.path,
+                        content: buffer.toString()
+                    })
+                }.bind(this));
 
-            socket.on('saveFile', async function(msg){
-                var app = this.applications[msg.app]
-                var content = new Buffer(msg.content, 'base64').toString()
-                fsextra.writeFileSync(app.path + "/" + msg.path, content, { flag: 'w' });
-                socket.emit("log", "saved: " + msg.path)
-                
-                var app = this.applications[msg.app]
-                app.compile(socket)
-            }.bind(this));
+                socket.on('saveFile', async function(msg){
+                    var app = this.applications[msg.app]
+                    var content = new Buffer(msg.content, 'base64').toString()
+                    fsextra.writeFileSync(app.path + "/" + msg.path, content, { flag: 'w' });
+                    socket.emit("log", "saved: " + msg.path)
+                    
+                    var app = this.applications[msg.app]
+                    app.compile(socket)
+                }.bind(this));
 
-            socket.on('getCompletionsAtPosition', function(msg){
-                var app = this.applications[msg.app]
-                try{
-                    msg = app.getCompletionsAtPosition(msg)
-                    socket.emit('getCompletionsAtPosition', msg);
-                }
-                catch (e){
-                    socket.emit('log', e.message);
-                }
-            }.bind(this));
-
+                socket.on('getCompletionsAtPosition', function(msg){
+                    var app = this.applications[msg.app]
+                    try{
+                        msg = app.getCompletionsAtPosition(msg)
+                        socket.emit('getCompletionsAtPosition', msg);
+                    }
+                    catch (e){
+                        socket.emit('log', e.message);
+                    }
+                }.bind(this));
+            }
         }.bind(this));
 
         this.app.use(bodyParser.json({ type: 'application/json', limit: '5mb' }))  // parse various different custom JSON types as JSON    
@@ -261,19 +271,26 @@ export default class Engine {
             var url = req.params["url"]
             try {
                 var app = this.applications[application]
-                 if (!app){
+                if (!app){
                     res.status(404)
                     res.end()
                     return
                 }
-                var ctrl = app.controllers[controller+"Controller"]
-                if (!ctrl){
-                    res.status(404)
-                    res.end()
-                    return
+                var result = null
+                if (application == 'studio43'){
+                    var ctrl = app.controllers[controller+"Controller"]
+                    if (!ctrl){
+                        res.status(404)
+                        res.end()
+                        return
+                    }
+                    var ctrl = new ctrl()
+                    result = await ctrl[method](url, req.query)
+                }else{
+                    var fileInfo = await app.dbLoadFile(url)
+                    result = {status: 200, contentType: fileInfo.contentType, body: fileInfo.buffer}
                 }
-                var ctrl = new ctrl()
-                var result = await ctrl[method](url, req.query)
+
                 res.status(result.status)
                 res.setHeader("Content-Type", result.contentType)
                 res.send(result.body)

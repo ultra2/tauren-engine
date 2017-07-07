@@ -49,86 +49,97 @@ class Engine {
             this.io.on('connection', function (socket) {
                 return __awaiter(this, void 0, void 0, function* () {
                     console.log('socket connection');
+                    if (socket.handshake.query.app == 'studio44') {
+                        socket.use((params, next) => {
+                            var app = this.applications[socket.handshake.query.app];
+                            var message = params[0];
+                            var data = params[1];
+                            app.on(message, data, socket);
+                            return next();
+                        });
+                    }
                     socket.on('disconnect', function () {
                         console.log('socket disconnect');
                     }.bind(this));
                     socket.emit("info", this.info);
                     socket.emit("applications", Object.keys(this.applications));
-                    socket.on('openApplication', function (msg) {
-                        return __awaiter(this, void 0, void 0, function* () {
-                            var app = this.applications[msg];
-                            var repo = yield app.open(socket);
-                            var root = app.createNode('');
-                            socket.emit("application", {
-                                name: app.name,
-                                tree: root
+                    if (socket.handshake.query.app != 'studio44') {
+                        socket.on('openApplication', function (msg) {
+                            return __awaiter(this, void 0, void 0, function* () {
+                                var app = this.applications[msg];
+                                var repo = yield app.open(socket);
+                                var root = app.createNode('');
+                                socket.emit("application", {
+                                    name: app.name,
+                                    tree: root
+                                });
                             });
-                        });
-                    }.bind(this));
-                    socket.on('publishApplication', function (msg) {
-                        return __awaiter(this, void 0, void 0, function* () {
-                            var app = this.applications[msg.app];
-                            var success = yield app.compile(socket);
-                            if (!success)
-                                return;
-                            yield app.push(socket);
-                            yield app.publish(socket);
-                        });
-                    }.bind(this));
-                    socket.on('npminstallApplication', function (msg) {
-                        return __awaiter(this, void 0, void 0, function* () {
-                            var app = this.applications[msg.app];
-                            app.npminstall(socket);
-                        });
-                    }.bind(this));
-                    socket.on('newFolder', function (msg) {
-                        return __awaiter(this, void 0, void 0, function* () {
-                            var app = this.applications[msg.app];
-                            var file = app.newFolder(msg, socket);
-                            socket.emit("newFolder", {
-                                file: file
+                        }.bind(this));
+                        socket.on('publishApplication', function (msg) {
+                            return __awaiter(this, void 0, void 0, function* () {
+                                var app = this.applications[msg.app];
+                                var success = yield app.compile(socket);
+                                if (!success)
+                                    return;
+                                yield app.push(socket);
+                                yield app.publish(socket);
                             });
-                        });
-                    }.bind(this));
-                    socket.on('newFile', function (msg) {
-                        return __awaiter(this, void 0, void 0, function* () {
-                            var app = this.applications[msg.app];
-                            var file = app.newFile(msg, socket);
-                            socket.emit("newFile", {
-                                file: file
+                        }.bind(this));
+                        socket.on('npminstallApplication', function (msg) {
+                            return __awaiter(this, void 0, void 0, function* () {
+                                var app = this.applications[msg.app];
+                                app.npminstall(socket);
                             });
-                        });
-                    }.bind(this));
-                    socket.on('editFile', function (msg) {
-                        return __awaiter(this, void 0, void 0, function* () {
-                            var app = this.applications[msg.app];
-                            var buffer = fsextra.readFileSync(app.path + "/" + msg.path);
-                            socket.emit("editFile", {
-                                path: msg.path,
-                                content: buffer.toString()
+                        }.bind(this));
+                        socket.on('newFolder', function (msg) {
+                            return __awaiter(this, void 0, void 0, function* () {
+                                var app = this.applications[msg.app];
+                                var file = app.newFolder(msg, socket);
+                                socket.emit("newFolder", {
+                                    file: file
+                                });
                             });
-                        });
-                    }.bind(this));
-                    socket.on('saveFile', function (msg) {
-                        return __awaiter(this, void 0, void 0, function* () {
+                        }.bind(this));
+                        socket.on('newFile', function (msg) {
+                            return __awaiter(this, void 0, void 0, function* () {
+                                var app = this.applications[msg.app];
+                                var file = app.newFile(msg, socket);
+                                socket.emit("newFile", {
+                                    file: file
+                                });
+                            });
+                        }.bind(this));
+                        socket.on('editFile', function (msg) {
+                            return __awaiter(this, void 0, void 0, function* () {
+                                var app = this.applications[msg.app];
+                                var buffer = fsextra.readFileSync(app.path + "/" + msg.path);
+                                socket.emit("editFile", {
+                                    path: msg.path,
+                                    content: buffer.toString()
+                                });
+                            });
+                        }.bind(this));
+                        socket.on('saveFile', function (msg) {
+                            return __awaiter(this, void 0, void 0, function* () {
+                                var app = this.applications[msg.app];
+                                var content = new Buffer(msg.content, 'base64').toString();
+                                fsextra.writeFileSync(app.path + "/" + msg.path, content, { flag: 'w' });
+                                socket.emit("log", "saved: " + msg.path);
+                                var app = this.applications[msg.app];
+                                app.compile(socket);
+                            });
+                        }.bind(this));
+                        socket.on('getCompletionsAtPosition', function (msg) {
                             var app = this.applications[msg.app];
-                            var content = new Buffer(msg.content, 'base64').toString();
-                            fsextra.writeFileSync(app.path + "/" + msg.path, content, { flag: 'w' });
-                            socket.emit("log", "saved: " + msg.path);
-                            var app = this.applications[msg.app];
-                            app.compile(socket);
-                        });
-                    }.bind(this));
-                    socket.on('getCompletionsAtPosition', function (msg) {
-                        var app = this.applications[msg.app];
-                        try {
-                            msg = app.getCompletionsAtPosition(msg);
-                            socket.emit('getCompletionsAtPosition', msg);
-                        }
-                        catch (e) {
-                            socket.emit('log', e.message);
-                        }
-                    }.bind(this));
+                            try {
+                                msg = app.getCompletionsAtPosition(msg);
+                                socket.emit('getCompletionsAtPosition', msg);
+                            }
+                            catch (e) {
+                                socket.emit('log', e.message);
+                            }
+                        }.bind(this));
+                    }
                 });
             }.bind(this));
             this.app.use(bodyParser.json({ type: 'application/json', limit: '5mb' }));
@@ -220,14 +231,21 @@ class Engine {
                             res.end();
                             return;
                         }
-                        var ctrl = app.controllers[controller + "Controller"];
-                        if (!ctrl) {
-                            res.status(404);
-                            res.end();
-                            return;
+                        var result = null;
+                        if (application == 'studio43') {
+                            var ctrl = app.controllers[controller + "Controller"];
+                            if (!ctrl) {
+                                res.status(404);
+                                res.end();
+                                return;
+                            }
+                            var ctrl = new ctrl();
+                            result = yield ctrl[method](url, req.query);
                         }
-                        var ctrl = new ctrl();
-                        var result = yield ctrl[method](url, req.query);
+                        else {
+                            var fileInfo = yield app.dbLoadFile(url);
+                            result = { status: 200, contentType: fileInfo.contentType, body: fileInfo.buffer };
+                        }
                         res.status(result.status);
                         res.setHeader("Content-Type", result.contentType);
                         res.send(result.body);

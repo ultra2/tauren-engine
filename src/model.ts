@@ -19,8 +19,9 @@ export class stubInfo {
 }
 
 export class fileInfo {
-    buffer: any
     contentType: string
+    metadata: any
+    buffer: any
 }
 
 

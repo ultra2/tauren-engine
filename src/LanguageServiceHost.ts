@@ -20,7 +20,7 @@ export default class LanguageServiceHost implements ts.LanguageServiceHost {
 
   getScriptVersion(fileName: string): string {
     //console.log("getScriptVersion", fileName)
-    if (fileName.substring(fileName.length-36) == "node_modules/typescript/lib/lib.d.ts"){
+    if (fileName.indexOf("node_modules/typescript") != -1){
       return ""
     }
     return this.app.getScriptVersion(fileName)
@@ -29,7 +29,7 @@ export default class LanguageServiceHost implements ts.LanguageServiceHost {
   getScriptSnapshot(fileName: string): ts.IScriptSnapshot | undefined {
     //console.log("getScriptSnapshot", fileName)
                 
-    if (fileName.substring(fileName.length-36) == "node_modules/typescript/lib/lib.d.ts"){
+    if (fileName.indexOf("node_modules/typescript") != -1){
       //console.log("fs: loaded: " + fileName)
       //this.app.engine.io.sockets.emit('log', fileName + " load: " + fsextra.readFileSync(fileName).toString().length)
       return ts.ScriptSnapshot.fromString(fsextra.readFileSync(fileName).toString())
@@ -71,14 +71,14 @@ export default class LanguageServiceHost implements ts.LanguageServiceHost {
       return result
     }
     
-    return { 
-        outFile: "dist/client/main-all.js",
-        noEmitOnError: true, 
-        noImplicitAny: false,
-        target: ts.ScriptTarget.ES5, 
-        module: ts.ModuleKind.AMD,
-        jsx: ts.JsxEmit.React
-    }
+    //return { 
+    //    outFile: "dist/client/main-all.js",
+    //    noEmitOnError: true, 
+    //    noImplicitAny: false,
+    //    target: ts.ScriptTarget.ES2016, 
+    //    module: ts.ModuleKind.AMD,
+    //    jsx: ts.JsxEmit.React
+    //}
   }
  
   getDefaultLibFileName(options: ts.CompilerOptions): string{

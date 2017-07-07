@@ -1,6 +1,7 @@
 /// <reference path="_all.d.ts" />
 "use strict";
 
+import * as moment from 'moment'
 import * as path from 'path'
 import * as uuid from "node-uuid"
 import * as fsextra from 'fs-extra'
@@ -17,6 +18,7 @@ import LanguageServiceHost from "./LanguageServiceHost"
 var Git = require("nodegit")
 var gitkit = require('nodegit-kit')
 var npmi = require('npmi')
+var amdefine = require('amdefine')
 
 export default class Application {
 
@@ -34,6 +36,8 @@ export default class Application {
     public pathversions: ts.MapLike<{ version: number }> = {}
     public filesRoot: object
     public filesArray: Array<any>
+    private requireModule: Function
+    private serverVersion: any
     
     constructor(application: string, engine: Engine) {
         this.name = application
@@ -59,29 +63,53 @@ export default class Application {
         this.loaded = false
         this.controllers = {} //namespace
         try {
-            var fs = await this.loadDocument("fs")
-            if (fs){ 
-                var fileInfo = await this.engine.mongo.loadFile(this.name + "/controller.js")
-                var F = Function('app', fileInfo.buffer)
+            //var fs = await this.loadDocument("fs")
+            //if (fs){ 
+            //    var fileInfo = await this.engine.mongo.loadFile(this.name + "/controller.js")
+            //    var F = Function('app', fileInfo.buffer)
+            //    F(this)
+            //    this.loaded = true
+            //    console.log("Application loaded: " + this.name);
+            //    return
+            //}
+            //if (this.name == "studio44"){
+            //    var file = await this.dbLoadFile("server/main-all.js")
+            //    var lib = eval(file.buffer.toString())
+            //    return
+            //}
+            if (this.name == "studio43"){
+                var file = await this.dbLoadFile("server/controller.js")
+                var F = Function('app', file.buffer)
                 F(this)
                 this.loaded = true
                 console.log("Application loaded: " + this.name);
                 return
             }
-            //new method
-            //await this.createTree()
-            //await this.cache2()
-            //await this.npminstall()
-            var file = await this.dbLoadFile("server/controller.js")
-            var F = Function('app', file.buffer)
-            F(this)
-            this.loaded = true
-            console.log("Application loaded: " + this.name);
-            return
+            await this.cacheServer()
         }
         catch (err) {
             console.log("Application could not been loaded: " + this.name + ", " + err);
         }
+    }
+
+    public async cacheServer(){
+        var define = amdefine(module)
+        this.requireModule = null
+        define(['require'], function(require){ this.requireModule = require }.bind(this))
+        var file = await this.dbLoadFile("server/main-all.js")
+        Function("define", file.buffer.toString())(define)
+    }
+
+    public async on(message: string, data: any, socket){
+        var splittedMessage = message.split(':')
+        var component = splittedMessage[0]
+        var method = splittedMessage[1]
+        var componentModule = await this.requireModule(component)
+        var componentInstance = new componentModule.default(this)
+        componentInstance["emitfn"] = function(message, data){
+            socket.emit(message, data)
+        }
+        componentInstance[method](data)
     }
 
     public async listDocuments() {
@@ -180,6 +208,7 @@ export default class Application {
             //contentType
             var filedesc = await this.engine.db.collection(this.name + ".files").findOne({ filename: path })
             result.contentType = filedesc.contentType
+            result.metadata = filedesc.metadata
 
             //buffer
             var readstream = this.engine.gridfs.createReadStream({
@@ -204,6 +233,9 @@ export default class Application {
                 _id: _id,
                 filename: path,
                 content_type: Utils.getMime(path),
+                metadata: {
+                    modified: moment().format('YYYY-MM-DD HH:mm:ss Z')
+                },
                 root: this.name
             })
 
@@ -331,14 +363,14 @@ export default class Application {
             })
 
             var diff = await gitkit.diff(repo)
-            console.log(diff)
+            //console.log(diff)
 
             await gitkit.commit(repo, {
                 'message': 'commit message'
             });
 
             var log = await gitkit.log(repo)
-            console.log(log)
+            //console.log(log)
 
             //index
             //var index = await repo.refreshIndex()
@@ -478,7 +510,8 @@ export default class Application {
         this.publishNode("dist", paths, socket)
 
         await Promise.all(paths.map(async path => { await this.publishFile(path, socket) }))
-
+        await this.cacheServer()
+        
     //    var buffer = fsextra.readFileSync(config.output.path + '/' + config.output.filename)
     //    await this.engine.mongo.uploadFileOrFolder(config.output.path.substr('/tmp/virtual/'.length) + '/' + config.output.filename, buffer) 
         

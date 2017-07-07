@@ -11,13 +11,13 @@ class LanguageServiceHost {
         return ["main.tsx"];
     }
     getScriptVersion(fileName) {
-        if (fileName.substring(fileName.length - 36) == "node_modules/typescript/lib/lib.d.ts") {
+        if (fileName.indexOf("node_modules/typescript") != -1) {
             return "";
         }
         return this.app.getScriptVersion(fileName);
     }
     getScriptSnapshot(fileName) {
-        if (fileName.substring(fileName.length - 36) == "node_modules/typescript/lib/lib.d.ts") {
+        if (fileName.indexOf("node_modules/typescript") != -1) {
             return ts.ScriptSnapshot.fromString(fsextra.readFileSync(fileName).toString());
         }
         if (!this.app.isFileExists(fileName)) {
@@ -48,14 +48,6 @@ class LanguageServiceHost {
             var result = JSON.parse(tsconfig);
             return result;
         }
-        return {
-            outFile: "dist/client/main-all.js",
-            noEmitOnError: true,
-            noImplicitAny: false,
-            target: ts.ScriptTarget.ES5,
-            module: ts.ModuleKind.AMD,
-            jsx: ts.JsxEmit.React
-        };
     }
     getDefaultLibFileName(options) {
         return ts.getDefaultLibFilePath(options);

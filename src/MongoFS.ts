@@ -241,7 +241,7 @@ export default class MongoFS {
 
     try {
       var buffer = await Utils.fromStream(readstream)
-      return { contentType: filedoc.contentType, buffer: buffer }
+      return { contentType: filedoc.contentType, buffer: buffer, metadata: {} }
     }
     catch (err) {
       throw Error(err.message)

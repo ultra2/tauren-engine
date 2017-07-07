@@ -230,7 +230,7 @@ class MongoFS {
             });
             try {
                 var buffer = yield utils_1.default.fromStream(readstream);
-                return { contentType: filedoc.contentType, buffer: buffer };
+                return { contentType: filedoc.contentType, buffer: buffer, metadata: {} };
             }
             catch (err) {
                 throw Error(err.message);

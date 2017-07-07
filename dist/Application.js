@@ -8,6 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const moment = require("moment");
 const path = require("path");
 const uuid = require("node-uuid");
 const fsextra = require("fs-extra");
@@ -20,6 +21,7 @@ const LanguageServiceHost_1 = require("./LanguageServiceHost");
 var Git = require("nodegit");
 var gitkit = require('nodegit-kit');
 var npmi = require('npmi');
+var amdefine = require('amdefine');
 class Application {
     constructor(application, engine) {
         this.fs = {};
@@ -47,25 +49,41 @@ class Application {
             this.loaded = false;
             this.controllers = {};
             try {
-                var fs = yield this.loadDocument("fs");
-                if (fs) {
-                    var fileInfo = yield this.engine.mongo.loadFile(this.name + "/controller.js");
-                    var F = Function('app', fileInfo.buffer);
+                if (this.name == "studio43") {
+                    var file = yield this.dbLoadFile("server/controller.js");
+                    var F = Function('app', file.buffer);
                     F(this);
                     this.loaded = true;
                     console.log("Application loaded: " + this.name);
                     return;
                 }
-                var file = yield this.dbLoadFile("server/controller.js");
-                var F = Function('app', file.buffer);
-                F(this);
-                this.loaded = true;
-                console.log("Application loaded: " + this.name);
-                return;
+                yield this.cacheServer();
             }
             catch (err) {
                 console.log("Application could not been loaded: " + this.name + ", " + err);
             }
+        });
+    }
+    cacheServer() {
+        return __awaiter(this, void 0, void 0, function* () {
+            var define = amdefine(module);
+            this.requireModule = null;
+            define(['require'], function (require) { this.requireModule = require; }.bind(this));
+            var file = yield this.dbLoadFile("server/main-all.js");
+            Function("define", file.buffer.toString())(define);
+        });
+    }
+    on(message, data, socket) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var splittedMessage = message.split(':');
+            var component = splittedMessage[0];
+            var method = splittedMessage[1];
+            var componentModule = yield this.requireModule(component);
+            var componentInstance = new componentModule.default(this);
+            componentInstance["emitfn"] = function (message, data) {
+                socket.emit(message, data);
+            };
+            componentInstance[method](data);
         });
     }
     listDocuments() {
@@ -155,6 +173,7 @@ class Application {
                 var result = new model.fileInfo();
                 var filedesc = yield this.engine.db.collection(this.name + ".files").findOne({ filename: path });
                 result.contentType = filedesc.contentType;
+                result.metadata = filedesc.metadata;
                 var readstream = this.engine.gridfs.createReadStream({
                     filename: path,
                     root: this.name
@@ -176,6 +195,9 @@ class Application {
                     _id: _id,
                     filename: path,
                     content_type: utils_1.default.getMime(path),
+                    metadata: {
+                        modified: moment().format('YYYY-MM-DD HH:mm:ss Z')
+                    },
                     root: this.name
                 });
                 yield utils_1.default.toStream(content, writestream);
@@ -282,12 +304,10 @@ class Application {
                     'user.email': 'johndoe@example.com'
                 });
                 var diff = yield gitkit.diff(repo);
-                console.log(diff);
                 yield gitkit.commit(repo, {
                     'message': 'commit message'
                 });
                 var log = yield gitkit.log(repo);
-                console.log(log);
                 var remote = yield Git.Remote.lookup(repo, "origin");
                 if (remote == null) {
                     var repourl = yield this.getRepositoryUrl();
@@ -391,6 +411,7 @@ class Application {
             var paths = [];
             this.publishNode("dist", paths, socket);
             yield Promise.all(paths.map((path) => __awaiter(this, void 0, void 0, function* () { yield this.publishFile(path, socket); })));
+            yield this.cacheServer();
             if (socket)
                 socket.emit("log", "publish success.");
         });
