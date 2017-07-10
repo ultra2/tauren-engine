@@ -73,19 +73,6 @@ class Application {
             Function("define", file.buffer.toString())(define);
         });
     }
-    on(message, data, socket) {
-        return __awaiter(this, void 0, void 0, function* () {
-            var splittedMessage = message.split(':');
-            var component = splittedMessage[0];
-            var method = splittedMessage[1];
-            var componentModule = yield this.requireModule(component);
-            var componentInstance = new componentModule.default(this);
-            componentInstance["emitfn"] = function (message, data) {
-                socket.emit(message, data);
-            };
-            componentInstance[method](data);
-        });
-    }
     listDocuments() {
         return __awaiter(this, void 0, void 0, function* () {
             return yield this.engine.db.collection(this.name).find().toArray();
@@ -325,7 +312,14 @@ class Application {
         return Git.Signature.create("Foo bar", "foo@bar.com", 123456789, 60);
     }
     getCompletionsAtPosition(msg) {
-        const languageService = (msg.mode == 'server') ? this.languageServiceServer : this.languageServiceClient;
+        var languageService = null;
+        if (msg.filePath.indexOf('.server.') != -1) {
+            languageService = this.languageServiceServer;
+            msg.filePath = msg.filePath.replace('.server', '');
+        }
+        else {
+            languageService = this.languageServiceClient;
+        }
         const completions = languageService.getCompletionsAtPosition(msg.filePath, msg.position);
         let completionList = completions || {};
         completionList["entries"] = completionList["entries"] || [];

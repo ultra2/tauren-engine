@@ -99,19 +99,7 @@ export default class Application {
         var file = await this.dbLoadFile("server/main-all.js")
         Function("define", file.buffer.toString())(define)
     }
-
-    public async on(message: string, data: any, socket){
-        var splittedMessage = message.split(':')
-        var component = splittedMessage[0]
-        var method = splittedMessage[1]
-        var componentModule = await this.requireModule(component)
-        var componentInstance = new componentModule.default(this)
-        componentInstance["emitfn"] = function(message, data){
-            socket.emit(message, data)
-        }
-        componentInstance[method](data)
-    }
-
+   
     public async listDocuments() {
         return await this.engine.db.collection(this.name).find().toArray()
     }
@@ -405,7 +393,14 @@ export default class Application {
     }
 
     public getCompletionsAtPosition(msg) {
-        const languageService = (msg.mode == 'server') ? this.languageServiceServer : this.languageServiceClient
+        var languageService = null
+        if (msg.filePath.indexOf('.server.') != -1) {
+           languageService = this.languageServiceServer
+           msg.filePath = msg.filePath.replace('.server', '')
+        }
+        else{
+            languageService = this.languageServiceClient
+        }
 
         const completions: ts.CompletionInfo = languageService.getCompletionsAtPosition(msg.filePath, msg.position)
 
@@ -511,7 +506,7 @@ export default class Application {
 
         await Promise.all(paths.map(async path => { await this.publishFile(path, socket) }))
         await this.cacheServer()
-        
+
     //    var buffer = fsextra.readFileSync(config.output.path + '/' + config.output.filename)
     //    await this.engine.mongo.uploadFileOrFolder(config.output.path.substr('/tmp/virtual/'.length) + '/' + config.output.filename, buffer) 
         

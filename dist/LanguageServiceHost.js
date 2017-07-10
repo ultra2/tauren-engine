@@ -1,42 +1,29 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const pathhelper = require("path");
 const ts = require("typescript");
-const fsextra = require("fs-extra");
 class LanguageServiceHost {
     constructor(_app, _mode) {
         this.app = _app;
         this.mode = _mode;
     }
     getScriptFileNames() {
-        return ["main.tsx"];
+        return ["main/main.tsx"];
     }
-    getScriptVersion(fileName) {
-        if (fileName.indexOf("node_modules/typescript") != -1) {
-            return "";
+    getScriptVersion(path) {
+        console.log("getScriptVersion orig: " + path);
+        if (path.indexOf("node_modules") == -1) {
+            var parsed = pathhelper.parse(path);
+            path = (this.mode == 'server') ? parsed.dir + '/' + parsed.name + '.server.ts' : path;
         }
-        return this.app.getScriptVersion(fileName);
+        console.log("getScriptVersion: " + path);
+        return this.app.getScriptVersion(path);
     }
     getScriptSnapshot(fileName) {
-        if (fileName.indexOf("node_modules/typescript") != -1) {
-            return ts.ScriptSnapshot.fromString(fsextra.readFileSync(fileName).toString());
-        }
-        if (!this.app.isFileExists(fileName)) {
+        if (!this.fileExists(fileName))
             return undefined;
-        }
-        var source = this.app.loadFile(fileName).buffer.toString();
-        var regex = (this.mode == "server") ? /(\/\/#CLIENT)(?! END)/ : /(\/\/#SERVER)(?! END)/;
-        var reg = new RegExp(regex, 'g');
-        var splitted = source.split(reg);
-        var pattern = (this.mode == "server") ? "//#CLIENT" : "//#SERVER";
-        var result = "";
-        for (var i in splitted) {
-            var s = splitted[i];
-            if (s == pattern)
-                continue;
-            var pos = s.indexOf(pattern + " END");
-            result += (pos == -1) ? s : s.substr(pos + 13);
-        }
-        return ts.ScriptSnapshot.fromString(result);
+        var source = this.readFile(fileName);
+        return ts.ScriptSnapshot.fromString(source);
     }
     getCurrentDirectory() {
         return ".";
@@ -50,13 +37,26 @@ class LanguageServiceHost {
         }
     }
     getDefaultLibFileName(options) {
-        return ts.getDefaultLibFilePath(options);
+        return "node_modules/typescript/lib/" + ts.getDefaultLibFileName(options);
     }
     readFile(path, encoding) {
+        console.log("readFile orig: " + path);
+        if (path.indexOf("node_modules") == -1) {
+            var parsed = pathhelper.parse(path);
+            path = (this.mode == 'server') ? parsed.dir + '/' + parsed.name + '.server.ts' : path;
+        }
+        console.log("readFile: " + path);
         return this.app.loadFile(path).buffer.toString();
     }
     fileExists(path) {
-        return this.app.isFileExists(path);
+        console.log("fileExists orig: " + path);
+        if (path.indexOf("node_modules") == -1) {
+            var parsed = pathhelper.parse(path);
+            path = (this.mode == 'server') ? parsed.dir + '/' + parsed.name + '.server.ts' : path;
+        }
+        var result = this.app.isFileExists(path);
+        console.log("fileExists: " + path + ": " + result);
+        return result;
     }
 }
 exports.default = LanguageServiceHost;

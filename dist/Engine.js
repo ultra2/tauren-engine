@@ -49,12 +49,24 @@ class Engine {
             this.io.on('connection', function (socket) {
                 return __awaiter(this, void 0, void 0, function* () {
                     console.log('socket connection');
+                    socket["session"] = socket["session"] || {};
                     if (socket.handshake.query.app == 'studio44') {
                         socket.use((params, next) => {
-                            var app = this.applications[socket.handshake.query.app];
                             var message = params[0];
+                            var splittedMessage = message.split(':');
+                            var component = splittedMessage[0];
+                            var method = splittedMessage[1];
                             var data = params[1];
-                            app.on(message, data, socket);
+                            var app = this.applications[socket.handshake.query.app];
+                            var componentModule = app.requireModule(component);
+                            var componentInstance = new componentModule.default();
+                            componentInstance["db"] = this.db;
+                            componentInstance["gridfs"] = this.gridfs;
+                            componentInstance["emitfn"] = function (message, data) {
+                                socket.emit(message, data);
+                            };
+                            componentInstance["session"] = socket["session"];
+                            componentInstance[method](data);
                             return next();
                         });
                     }
