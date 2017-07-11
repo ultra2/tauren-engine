@@ -29,8 +29,8 @@ class Application {
         }
     }
     createChildProcess() {
-        //process.execArgv = [] //DEBUG: ["--debug-brk=9229"] 
-        process.execArgv = ["--inspect=9229"];
+        process.execArgv = []; //DEBUG: ["--debug-brk=9229"] 
+        //process.execArgv = ["--inspect=9229"] 
         var modulePath = "dist/server/start";
         var args = []; //DEBUG: ["--debug-brk=9229"] 
         var options = { cwd: this.path, env: { workingUrl: this.engine.workingUrl } };
