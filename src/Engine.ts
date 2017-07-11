@@ -1,22 +1,16 @@
-/// <reference path="_all.d.ts" />
 "use strict";
 
 import * as path from 'path'
-import * as fsextra from 'fs-extra'
-import http = require('http')
 import * as express from "express"
 import * as bodyParser from "body-parser"
-import * as request from "request"
 import * as mongodb from "mongodb"
-import * as model from './model'
-import Application from './Application'
 import * as gridfs from "gridfs-stream"
-import MongoFS from './MongoFS'
-import Utils from './utils'
-import MemoryFileSystem = require('memory-fs') //You need to import export = style libraries with import require. This is because of the ES6 spec.
+import * as request from "request"
+import http = require('http')
 import socketIo = require('socket.io')
-var Git = require("nodegit")
-var gitkit = require('nodegit-kit')
+import Application from './Application'
+import Utils from './utils'
+import * as fsextra from 'fs-extra'
 
 export default class Engine {
 
@@ -27,8 +21,6 @@ export default class Engine {
     public applications: Object
     public router: express.Router
     public app: express.Application
-    public cache: MemoryFileSystem
-    public mongo: MongoFS
     public gridfs: gridfs.Grid
     public workingUrl: string
     public templateUrl: string
@@ -38,7 +30,6 @@ export default class Engine {
        
         this.info = {}
         this.applications = {}
-        this.cache = new MemoryFileSystem()
         this.templateUrl = "mongodb://guest:guest@ds056549.mlab.com:56549/tauren"
         //this.templateUrl = "mongodb://guest:guest@ds117189.mlab.com:17189/ide"
         this.workingUrl = "mongodb://admin:Leonardo19770206Z@ds056549.mlab.com:56549/tauren"
@@ -46,26 +37,36 @@ export default class Engine {
     }
 
     public async run() {
-        await this.initRouter()
-        await this.initApp()
-
         await this.initMongo()
-        this.mongo = new MongoFS(this.db)
         this.gridfs = gridfs(this.db, mongodb);
 
         await this.loadApplications()
         //await this.updateStudio()
+
+        await this.initRouter()
+        await this.initApp()
     }
 
     private async initApp() {
         this.app = express()
 
-//TEST-------------------------------------------------------------
         this.server = http.createServer(this.app)
         this.io = socketIo(this.server)
 
         this.io.on('connection', async function(socket) {
             console.log('socket connection')
+
+            var app = this.applications[socket.handshake.query.app]
+
+            app.process.on('message', (msg) => {
+                socket.emit(msg.message, msg.data)
+            })
+
+            app.process.send({ message: 'main:connect', data: null })
+
+            socket.use((params, next) => {
+                app.process.send({ message: params[0], data: params[1] })
+            })
 
            // socket.use((socket, next) => {
            //     let clientId = socket.handshake.headers['x-clientid'];
@@ -73,115 +74,39 @@ export default class Engine {
            //     return next();
            // });
 
-            socket["session"] = socket["session"] || {}
+            //socket["session"] = socket["session"] || {}
 
-            if (socket.handshake.query.app == 'studio44'){
-                socket.use((params, next) => {
-                    var message = params[0]
-                    var splittedMessage = message.split(':')
-                    var component = splittedMessage[0]
-                    var method = splittedMessage[1]
-                    var data = params[1]
+            //socket.use((params, next) => {
+            //    var message = params[0]
+            //    var splittedMessage = message.split(':')
+            //    var component = splittedMessage[0]
+            //    var method = splittedMessage[1]
+            //    var data = params[1]
 
-                    var app = this.applications[socket.handshake.query.app]
-                    var componentModule = app.requireModule(component)
+            //    var app = this.applications[socket.handshake.query.app]
+            //    var componentModule = app.requireModule(component)
 
-                    var componentInstance = new componentModule.default()
-                    componentInstance["db"] = this.db
-                    componentInstance["gridfs"] = this.gridfs
-                    componentInstance["emitfn"] = function(message, data){
-                        socket.emit(message, data)
-                    }
+            //    var componentInstance = new componentModule.default()
+            //    componentInstance["db"] = this.db
+            //    componentInstance["gridfs"] = this.gridfs
+            //    componentInstance["emitfn"] = function(message, data){
+            //        socket.emit(message, data)
+            //    }
 
-                    //experimental
-                    componentInstance["session"] = socket["session"]
+                //experimental
+            //    componentInstance["session"] = socket["session"]
 
-                    componentInstance[method](data)
+            //    componentInstance[method](data)
 
-                    return next();
-                })
-            }
+            //    return next();
+            //})
         
             socket.on('disconnect', function(){
                 console.log('socket disconnect');
             }.bind(this));
 
-            socket.emit("info", this.info)  
-            socket.emit("applications", Object.keys(this.applications))  
-
-            if (socket.handshake.query.app != 'studio44'){
-                socket.on('openApplication', async function(msg){
-                    var app = this.applications[msg]
-                    var repo = await app.open(socket)
-                    var root = app.createNode('')
-                    socket.emit("application", {
-                        name: app.name,
-                        tree: root
-                    }) 
-                }.bind(this));
-
-                socket.on('publishApplication', async function(msg){
-                    var app = this.applications[msg.app]
-
-                    var success = await app.compile(socket)
-                    if (!success) return
-
-                    await app.push(socket)
-                    //await app.build(socket)
-                    await app.publish(socket)
-                }.bind(this));
-
-                socket.on('npminstallApplication', async function(msg){
-                    var app = this.applications[msg.app]
-                    app.npminstall(socket)
-                }.bind(this));
-
-                socket.on('newFolder', async function(msg){
-                    var app = this.applications[msg.app]
-                    var file = app.newFolder(msg, socket)
-                    socket.emit("newFolder", {
-                        file: file
-                    })
-                }.bind(this));
-
-                socket.on('newFile', async function(msg){
-                    var app = this.applications[msg.app]
-                    var file = app.newFile(msg, socket)
-                    socket.emit("newFile", {
-                        file: file
-                    })
-                }.bind(this));
-
-                socket.on('editFile', async function(msg){
-                    var app = this.applications[msg.app]
-                    var buffer = fsextra.readFileSync(app.path + "/" + msg.path) 
-                    socket.emit("editFile", {
-                        path: msg.path,
-                        content: buffer.toString()
-                    })
-                }.bind(this));
-
-                socket.on('saveFile', async function(msg){
-                    var app = this.applications[msg.app]
-                    var content = new Buffer(msg.content, 'base64').toString()
-                    fsextra.writeFileSync(app.path + "/" + msg.path, content, { flag: 'w' });
-                    socket.emit("log", "saved: " + msg.path)
-                    
-                    var app = this.applications[msg.app]
-                    app.compile(socket)
-                }.bind(this));
-
-                socket.on('getCompletionsAtPosition', function(msg){
-                    var app = this.applications[msg.app]
-                    try{
-                        msg = app.getCompletionsAtPosition(msg)
-                        socket.emit('getCompletionsAtPosition', msg);
-                    }
-                    catch (e){
-                        socket.emit('log', e.message);
-                    }
-                }.bind(this));
-            }
+            //socket.emit("info", this.info)  
+            //socket.emit("applications", Object.keys(this.applications))  
         }.bind(this));
 
         this.app.use(bodyParser.json({ type: 'application/json', limit: '5mb' }))  // parse various different custom JSON types as JSON    
@@ -218,27 +143,12 @@ export default class Engine {
         }
     } 
 
-    //private async updateStudio(){
-    //    this.info["studioUpdated"] = false
-
-    //    if (this.db == null) return
-
-        //we working on prototype studio, so we can't update
-    //    var workingHost = this.workingUrl.substring(this.workingUrl.indexOf('@')+1)
-    //    var templateHost = this.templateUrl.substring(this.templateUrl.indexOf('@')+1)
-    //    if (workingHost == templateHost) return
-        
-    //    await this.copyApplicationFromDatabase(this.templateUrl, "studio", "studio")
-
-    //    this.info["studioUpdated"] = true
-    //}
-
     private async initRouter() {
         this.router = express.Router()
 
         this.router.get("/", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
             try{
-                res.redirect('/studio43/Static/getFile/client/index.html');
+                res.redirect('/studio44/Static/getFile/client/index.html');
             }
             catch(err){
                 throw Error(err.message)
@@ -296,53 +206,12 @@ export default class Engine {
                     return
                 }
                 var result = null
-                if (application == 'studio43'){
-                    var ctrl = app.controllers[controller+"Controller"]
-                    if (!ctrl){
-                        res.status(404)
-                        res.end()
-                        return
-                    }
-                    var ctrl = new ctrl()
-                    result = await ctrl[method](url, req.query)
-                }else{
-                    var fileInfo = await app.dbLoadFile(url)
-                    result = {status: 200, contentType: fileInfo.contentType, body: fileInfo.buffer}
-                }
 
-                res.status(result.status)
-                res.setHeader("Content-Type", result.contentType)
-                res.send(result.body)
-            }
-            catch (err) {
-                console.log(err)
-                res.status(500)
-                res.send(err.message)
-            }
-        }.bind(this))
+                var fileInfo = await app.dbLoadFile(url)
+                result = {status: 200, contentType: fileInfo.contentType, body: fileInfo.buffer}
+                //var buffer = fsextra.readFileSync(app.path + '/dist/' + url)
+                //result = {status: 200, contentType: Utils.getMime(url), body: buffer}
 
-        this.router.post('/:application/:controller/:method/:url(*)?', async function (req: express.Request, res: express.Response, next: express.NextFunction) {
-            console.log("post " + req.originalUrl)
-            var application = req.params["application"]
-            var controller = req.params["controller"]
-            var method = req.params["method"]
-            var url = req.params["url"]
-            var body = req["body"]
-            try {
-                var app = this.applications[application]
-                 if (!app){
-                    res.status(404)
-                    res.end()
-                    return
-                }
-                var ctrl = app.controllers[controller+"Controller"]
-                if (!ctrl){
-                    res.status(404)
-                    res.end()
-                    return
-                }
-                var ctrl = new ctrl()
-                var result = await ctrl[method](url, req.query, body)
                 res.status(result.status)
                 res.setHeader("Content-Type", result.contentType)
                 res.send(result.body)
@@ -356,6 +225,7 @@ export default class Engine {
     }
     
     public async loadApplication(name:string) {
+        if (name != "studio44") return
         if (this.applications[name]) return
         var app = new Application(name, this)
         this.applications[name] = app
@@ -373,105 +243,36 @@ export default class Engine {
         }.bind(this))
     }
 
-    public async createApplication(name:string) : Promise<Application> {
-        var app = new Application(name, this)
-        await app.create()
-        return app
-    }
+    //public async createApplication(name:string) : Promise<Application> {
+        //var app = new Application(name, this)
+        //await app.create()
+        //return app
+    //}
 
-    public async deleteApplication(name:string) : Promise<void> {
-        if (!this.applications[name]) return
+    //public async deleteApplication(name:string) : Promise<void> {
+    //    if (!this.applications[name]) return
 
-        delete this.applications[name]
+    //    delete this.applications[name]
 
-        await this.db.collection(name).drop()
-        await this.db.collection(name + ".files").drop()
-        await this.db.collection(name + ".chunks").drop()
-    }
+    //    await this.db.collection(name).drop()
+    //    await this.db.collection(name + ".files").drop()
+    //    await this.db.collection(name + ".chunks").drop()
+    //}
 
-    public async listApplicationsOfDatabase(dburl: string) : Promise<string[]> {
-        var result = []
-        var sourcedb = await mongodb.MongoClient.connect(dburl);
-        var collections = await sourcedb.listCollections({}).toArray();
-        for (var i=0; i < collections.length; i++) {  
-            var application = collections[i].name       
-            if (application.indexOf('.') != -1) continue
-            if (application == "objectlabs-system") continue 
-
-            var readme = ""
-            var fs = new MongoFS(this.db)
-             
-            var data = await this.mongo.findOrCreateStub(application, "README.html", false)
-            if (data.stub) {
-                var filedoc = await sourcedb.collection(application + ".files").findOne({'_id': data.stub._fileId})
-                var gfs = gridfs(sourcedb, mongodb);
-                var readstream = gfs.createReadStream({
-                    _id : filedoc._id,
-                    root: application
-                });
-                try{
-                    readme = await Utils.fromStream(readstream)
-                }
-                catch(err){
-                }
-            }
-            
-            result.push({name: application, description: readme.toString()})   
-        }
-        return result
-    }
-
-    public async copyApplicationFromDatabase(sourceDBUrl: string, sourceAppName: string, destAppName: string) : Promise<void> {
-        var sourcedb = await mongodb.MongoClient.connect(sourceDBUrl);
+    //public async copyApplicationFromDatabase(sourceDBUrl: string, sourceAppName: string, destAppName: string) : Promise<void> {
+    //    var sourcedb = await mongodb.MongoClient.connect(sourceDBUrl);
         
-        await this.deleteApplication(destAppName)
+    //    await this.deleteApplication(destAppName)
     
-        var fs = await sourcedb.collection(sourceAppName).find().toArray()
-        await this.db.collection(destAppName).insertMany(fs)
+    //    var fs = await sourcedb.collection(sourceAppName).find().toArray()
+    //    await this.db.collection(destAppName).insertMany(fs)
 
-        var files = await sourcedb.collection(sourceAppName + ".files").find().toArray()
-        await this.db.collection(destAppName + ".files").insertMany(files)
+    //   var files = await sourcedb.collection(sourceAppName + ".files").find().toArray()
+    //    await this.db.collection(destAppName + ".files").insertMany(files)
 
-        var chunks = await sourcedb.collection(sourceAppName + ".chunks").find().toArray()
-        await this.db.collection(destAppName + ".chunks").insertMany(chunks)
+    //    var chunks = await sourcedb.collection(sourceAppName + ".chunks").find().toArray()
+    //    await this.db.collection(destAppName + ".chunks").insertMany(chunks)
 
-        await this.loadApplication(destAppName)
-    }
-
-    //private credentialsAuthCounter = 0
-    //private credentials(url, userName) {
-    //    this.credentialsAuthCounter++
-    //    if (this.credentialsAuthCounter > 1) throw "Authentication failed.";
-
-    //    console.log("Try authenticate: " + this.credentialsAuthCounter + ": " + userName)
-        
- 
-    //    try {
-            //SSH: Gitlab blocks outgoing ssh port (21)
-            //var rsapub = fsextra.readFileSync("./id_rsa.pub").toString()
-            //var rsa = fsextra.readFileSync("./id_rsa").toString()
-            //return Git.Cred.sshKeyMemoryNew(userName, rsapub, rsa, "")
-
-            //SSH: Gitlab blocks outgoing ssh port (21)
-            //return this.Cred.sshKeyNew(userName, "./id_rsa.pub", "./id_rsa", "")
-
-            //Access Token
-    //        return Git.Cred.userpassPlaintextNew(userName, this.gitLabAccessToken)
-    //    }
-    //    catch(err) { 
-    //        console.log("Authenticate error: " + err)
-    //    }
+    //    await this.loadApplication(destAppName)
     //}
-
-    //private certificateCheck() {
-    //    return 1;
-    //}
-
-    //public getRemoteCallbacks(): any {
-    //    this.credentialsAuthCounter = 0
-    //    return {
-    //        certificateCheck: this.certificateCheck,
-    //        credentials: this.credentials
-    //    }
-    //}    
 }

@@ -65,8 +65,9 @@ it pushes up the container to dockerhub
 docker push ultra2/tauren-engine
 
 
-
-
+Compile studio
+-------------------------
+tsc main.server.ts  --outDir ./dist/server --jsx react --lib 'es2015','dom'
 
 
 
