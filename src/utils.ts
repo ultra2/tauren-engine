@@ -4,6 +4,7 @@ import * as pathhelper from "path";
 import * as stream from "stream";
 import * as request from "request";
 import * as mime from "mime"
+import * as mongodb from "mongodb"
 
 export default class Utils {
 

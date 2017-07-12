@@ -8,18 +8,15 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const express = require("express");
-const bodyParser = require("body-parser");
 const mongodb = require("mongodb");
 const gridfs = require("gridfs-stream");
-const request = require("request");
 const http = require("http");
-const socketIo = require("socket.io");
+//var https = require('https');
 const Application_1 = require("./Application");
-const utils_1 = require("./utils");
-const fsextra = require("fs-extra");
+var httpProxy = require('http-proxy');
 class Engine {
     constructor() {
+        this.proxy = httpProxy.createProxy({ ws: true });
         this.info = {};
         this.applications = {};
         this.templateUrl = "mongodb://guest:guest@ds056549.mlab.com:56549/tauren";
@@ -33,63 +30,78 @@ class Engine {
             this.gridfs = gridfs(this.db, mongodb);
             yield this.loadApplications();
             //await this.updateStudio()
-            yield this.initRouter();
+            //await this.initRouter()
             yield this.initApp();
+        });
+    }
+    middleware(req, res) {
+        console.log("req.url: " + req.url);
+        this.proxy.web(req, res, {
+            target: 'http://localhost:3000'
+        }, function (e) {
+            console.log(e, req);
+        });
+    }
+    upgrade(req, res) {
+        console.log("ws: " + req.url);
+        this.proxy.ws(req, res, {
+            target: 'http://localhost:3000'
+        }, function (e) {
+            console.log(e, req);
         });
     }
     initApp() {
         return __awaiter(this, void 0, void 0, function* () {
-            this.app = express();
-            this.server = http.createServer(this.app);
-            this.io = socketIo(this.server);
-            this.io.on('connection', function (socket) {
-                return __awaiter(this, void 0, void 0, function* () {
-                    console.log('socket connection');
-                    var app = this.applications[socket.handshake.query.app];
-                    app.process.on('message', (msg) => {
-                        socket.emit(msg.message, msg.data);
-                    });
-                    app.process.send({ message: 'main:connect', data: null });
-                    socket.use((params, next) => {
-                        app.process.send({ message: params[0], data: params[1] });
-                    });
-                    // socket.use((socket, next) => {
-                    //     let clientId = socket.handshake.headers['x-clientid'];
-                    //     debugger
-                    //     return next();
-                    // });
-                    //socket["session"] = socket["session"] || {}
-                    //socket.use((params, next) => {
-                    //    var message = params[0]
-                    //    var splittedMessage = message.split(':')
-                    //    var component = splittedMessage[0]
-                    //    var method = splittedMessage[1]
-                    //    var data = params[1]
-                    //    var app = this.applications[socket.handshake.query.app]
-                    //    var componentModule = app.requireModule(component)
-                    //    var componentInstance = new componentModule.default()
-                    //    componentInstance["db"] = this.db
-                    //    componentInstance["gridfs"] = this.gridfs
-                    //    componentInstance["emitfn"] = function(message, data){
-                    //        socket.emit(message, data)
-                    //    }
-                    //experimental
-                    //    componentInstance["session"] = socket["session"]
-                    //    componentInstance[method](data)
-                    //    return next();
-                    //})
-                    socket.on('disconnect', function () {
-                        console.log('socket disconnect');
-                    }.bind(this));
-                    //socket.emit("info", this.info)  
-                    //socket.emit("applications", Object.keys(this.applications))  
-                });
-            }.bind(this));
-            this.app.use(bodyParser.json({ type: 'application/json', limit: '5mb' })); // parse various different custom JSON types as JSON    
-            this.app.use(bodyParser.raw({ type: 'application/vnd.custom-type' })); // parse some custom thing into a Buffer      
-            this.app.use(bodyParser.text({ type: 'text/*', limit: '5mb' })); // body as string
-            //this.app.use(bodyParser.urlencoded({limit: '5mb'})); // parse body if mime "application/x-www-form-urlencoded"
-            this.app.use(this.router);
+            //this.app = express()
+            this.server = http.createServer(this.middleware.bind(this));
+            this.server.on('upgrade', this.upgrade.bind(this));
+            //this.io = socketIo(this.server)
+            //this.io.on('connection', async function(socket) {
+            //    console.log('socket connection')
+            //    var app = this.applications[socket.handshake.query.app]
+            //    app.process.on('message', (msg) => {
+            //        socket.emit(msg.message, msg.data)
+            //    })
+            //    app.process.send({ message: 'main:connect', data: null })
+            //    socket.use((params, next) => {
+            //        app.process.send({ message: params[0], data: params[1] })
+            //    })
+            // socket.use((socket, next) => {
+            //     let clientId = socket.handshake.headers['x-clientid'];
+            //     debugger
+            //     return next();
+            // });
+            //socket["session"] = socket["session"] || {}
+            //socket.use((params, next) => {
+            //    var message = params[0]
+            //    var splittedMessage = message.split(':')
+            //    var component = splittedMessage[0]
+            //    var method = splittedMessage[1]
+            //    var data = params[1]
+            //    var app = this.applications[socket.handshake.query.app]
+            //    var componentModule = app.requireModule(component)
+            //    var componentInstance = new componentModule.default()
+            //    componentInstance["db"] = this.db
+            //    componentInstance["gridfs"] = this.gridfs
+            //    componentInstance["emitfn"] = function(message, data){
+            //        socket.emit(message, data)
+            //    }
+            //experimental
+            //    componentInstance["session"] = socket["session"]
+            //    componentInstance[method](data)
+            //    return next();
+            //})
+            //    socket.on('disconnect', function(){
+            //        console.log('socket disconnect');
+            //    }.bind(this));
+            //socket.emit("info", this.info)  
+            //socket.emit("applications", Object.keys(this.applications))  
+            //}.bind(this));
+            //this.app.use(bodyParser.json({ type: 'application/json', limit: '5mb' }))  // parse various different custom JSON types as JSON    
+            //this.app.use(bodyParser.raw({ type: 'application/vnd.custom-type' })) // parse some custom thing into a Buffer      
+            //this.app.use(bodyParser.text({ type: 'text/*', limit: '5mb' })) // body as string
+            ////this.app.use(bodyParser.urlencoded({limit: '5mb'})); // parse body if mime "application/x-www-form-urlencoded"
+            //this.app.use(this.router)
             // catch 404 and forward to error handler
             //this.app.use(function (err: any, req: express.Request, res: express.Response, next: express.NextFunction) {
             //    var error = new Error("Not Found");
@@ -99,16 +111,14 @@ class Engine {
             var host = "0.0.0.0";
             var port = 8080;
             this.server.listen(port, host, function () {
-                console.log('Express started on %s:%d ...', host, port);
+                console.log('Engine proxy started on %s:%d ...', host, port);
             });
         });
     }
     initMongo() {
         return __awaiter(this, void 0, void 0, function* () {
-            if (this.db != null)
-                return;
             try {
-                this.db = yield mongodb.MongoClient.connect(this.workingUrl);
+                this.db = yield mongodb.MongoClient.connect(this.workingUrl, { autoReconnect: true });
                 this.info["workingUrl"] = this.workingUrl.substring(this.workingUrl.indexOf('@') + 1);
                 console.log("WORKING Mongo initialized!");
                 this.info["workingDBConnected"] = true;
@@ -119,114 +129,90 @@ class Engine {
             }
         });
     }
-    initRouter() {
-        return __awaiter(this, void 0, void 0, function* () {
-            this.router = express.Router();
-            this.router.get("/", function (req, res, next) {
-                return __awaiter(this, void 0, void 0, function* () {
-                    try {
-                        res.redirect('/studio44/Static/getFile/client/index.html');
-                    }
-                    catch (err) {
-                        throw Error(err.message);
-                    }
-                });
-            }.bind(this));
-            this.router.get("/env", function (req, res, next) {
-                return __awaiter(this, void 0, void 0, function* () {
-                    try {
-                        res.send(process.env);
-                        res.end();
-                    }
-                    catch (err) {
-                        throw Error(err.message);
-                    }
-                });
-            }.bind(this));
-            this.router.get("/info", function (req, res, next) {
-                return __awaiter(this, void 0, void 0, function* () {
-                    try {
-                        res.send(this.info);
-                        res.end();
-                    }
-                    catch (err) {
-                        throw Error(err.message);
-                    }
-                });
-            }.bind(this));
-            this.router.get('/debugurl', function (req, res, next) {
-                request('http://localhost:9229/json/list', function (error, response, body) {
-                    try {
-                        //debug route's host name is generated by OpenShift like this:
-                        var debugRouteHost = process.env.ENGINE_SERVICE_NAME + "-debug-" + process.env.OPENSHIFT_BUILD_NAMESPACE + ".44fs.preview.openshiftapps.com";
-                        var url = JSON.parse(body)[0].devtoolsFrontendUrl;
-                        //url = url.replace("https://chrome-devtools-frontend.appspot.com", "chrome-devtools://devtools/remote")
-                        url = url.replace("localhost:9229", debugRouteHost);
-                        res.send(url);
-                        res.end();
-                    }
-                    catch (error) {
-                        res.send(error);
-                    }
-                });
-            });
-            this.router.get('/:application/:controller/:method/:url(*)?', function (req, res, next) {
-                return __awaiter(this, void 0, void 0, function* () {
-                    //console.log("get " + req.originalUrl)
-                    var application = req.params["application"];
-                    var controller = req.params["controller"];
-                    var method = req.params["method"];
-                    var url = req.params["url"];
-                    try {
-                        var app = this.applications[application];
-                        if (!app) {
-                            res.status(404);
-                            res.end();
-                            return;
-                        }
-                        var result = null;
-                        //var fileInfo = await app.dbLoadFile(url)
-                        //result = {status: 200, contentType: fileInfo.contentType, body: fileInfo.buffer}
-                        var buffer = fsextra.readFileSync(app.livePath + '/' + url);
-                        result = { status: 200, contentType: utils_1.default.getMime(url), body: buffer };
-                        res.status(result.status);
-                        res.setHeader("Content-Type", result.contentType);
-                        res.send(result.body);
-                    }
-                    catch (err) {
-                        console.log(err);
-                        res.status(500);
-                        res.send(err.message);
-                    }
-                });
-            }.bind(this));
-        });
-    }
-    loadApplication(name) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (name != "studio44")
-                return;
-            if (this.applications[name])
-                return;
-            var app = new Application_1.default(name, this);
-            this.applications[name] = app;
-            yield app.init();
-        });
-    }
+    //private async initRouter() {
+    //    this.router = express.Router()
+    //    this.router.get("/", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
+    //        try{
+    //            res.redirect('/studio44/Static/getFile/client/index.html');
+    //        }
+    //        catch(err){
+    //            throw Error(err.message)
+    //        }
+    //    }.bind(this))
+    //    this.router.get("/env", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
+    //        try{
+    //            res.send(process.env)
+    //            res.end()
+    //        }
+    //        catch(err){
+    //            throw Error(err.message)
+    //        }
+    //    }.bind(this))
+    //    this.router.get("/info", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
+    //        try{
+    //            res.send(this.info)
+    //            res.end()
+    //        }
+    //        catch(err){
+    //            throw Error(err.message)
+    //        }
+    //    }.bind(this))
+    //  this.router.get('/debugurl', function (req: express.Request, res: express.Response, next: express.NextFunction) {
+    //        request('http://localhost:9229/json/list', function (error, response, body) {
+    //            try{
+    //                //debug route's host name is generated by OpenShift like this:
+    //                var debugRouteHost = process.env.ENGINE_SERVICE_NAME + "-debug-" + process.env.OPENSHIFT_BUILD_NAMESPACE + ".44fs.preview.openshiftapps.com"
+    //                var url = JSON.parse(body)[0].devtoolsFrontendUrl
+    //                //url = url.replace("https://chrome-devtools-frontend.appspot.com", "chrome-devtools://devtools/remote")
+    //                url = url.replace("localhost:9229", debugRouteHost)
+    //                res.send(url)
+    //                res.end()
+    //            }
+    //           catch(error){
+    //               res.send(error)
+    //            }
+    //        })
+    //    });
+    //    this.router.get('/:application/:controller/:method/:url(*)?', async function (req: express.Request, res: express.Response, next: express.NextFunction) {
+    //        //console.log("get " + req.originalUrl)
+    //        var application = req.params["application"]
+    ///        var controller = req.params["controller"]
+    //        var method = req.params["method"]
+    //        var url = req.params["url"]
+    //        try {
+    //           var app = this.applications[application]
+    //            if (!app){
+    //                res.status(404)
+    //                res.end()
+    //                return
+    //            }
+    //            var result = null
+    //            //var fileInfo = await app.dbLoadFile(url)
+    //            //result = {status: 200, contentType: fileInfo.contentType, body: fileInfo.buffer}
+    //            var buffer = fsextra.readFileSync(app.livePath + '/' + url)
+    //            result = {status: 200, contentType: Utils.getMime(url), body: buffer}
+    //            res.status(result.status)
+    //            res.setHeader("Content-Type", result.contentType)
+    //            res.send(result.body)
+    //        }
+    //        catch (err) {
+    //            console.log(err)
+    //            res.status(500)
+    //            res.send(err.message)
+    //        }
+    //    }.bind(this))
+    //}
     loadApplications() {
         return __awaiter(this, void 0, void 0, function* () {
-            if (!this.db)
-                return;
             this.applications = {};
-            var data = yield this.db.listCollections({}).toArray();
-            data.forEach(function (element, index) {
-                return __awaiter(this, void 0, void 0, function* () {
-                    var name = element.name.split('.')[0];
-                    if (name == "system")
-                        return;
-                    yield this.loadApplication(name);
-                });
-            }.bind(this));
+            var apps = yield this.db.listCollections({}).toArray();
+            yield Promise.all(apps.map((app) => __awaiter(this, void 0, void 0, function* () {
+                if (app.name != "helloworld")
+                    return;
+                var app2 = new Application_1.default(app.name, this);
+                this.applications[app.name] = app2;
+                yield app2.init();
+            })));
         });
     }
 }

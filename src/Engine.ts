@@ -1,33 +1,35 @@
 "use strict";
 
 import * as path from 'path'
-import * as express from "express"
+//import * as express from "express"
 import * as bodyParser from "body-parser"
 import * as mongodb from "mongodb"
 import * as gridfs from "gridfs-stream"
 import * as request from "request"
 import http = require('http')
-import socketIo = require('socket.io')
+//var https = require('https');
 import Application from './Application'
 import Utils from './utils'
 import * as fsextra from 'fs-extra'
+var httpProxy = require('http-proxy')
+
 
 export default class Engine {
 
+    public proxy: any
     public server: http.Server
-    public io: SocketIO.Server
     public info: Object
     public db: mongodb.Db
     public applications: Object
-    public router: express.Router
-    public app: express.Application
+    //public router: express.Router
+    //public app: express.Application
     public gridfs: gridfs.Grid
     public workingUrl: string
     public templateUrl: string
     public gitLabAccessToken: string
 
     constructor() {
-       
+        this.proxy = httpProxy.createProxy({ ws : true });
         this.info = {}
         this.applications = {}
         this.templateUrl = "mongodb://guest:guest@ds056549.mlab.com:56549/tauren"
@@ -43,30 +45,51 @@ export default class Engine {
         await this.loadApplications()
         //await this.updateStudio()
 
-        await this.initRouter()
+        //await this.initRouter()
         await this.initApp()
     }
 
+    private middleware(req, res) {
+        console.log("req.url: " + req.url)
+        this.proxy.web(req, res, {
+            target: 'http://localhost:3000'
+        },function(e){
+            console.log(e,req);
+        });
+    }
+
+    private upgrade(req,res){
+        console.log("ws: " + req.url)
+        
+        this.proxy.ws(req, res, {
+            target: 'http://localhost:3000'
+        },function(e){
+            console.log(e,req);
+        });
+    }
+
     private async initApp() {
-        this.app = express()
+        //this.app = express()
 
-        this.server = http.createServer(this.app)
-        this.io = socketIo(this.server)
+        this.server = http.createServer(this.middleware.bind(this))
+        this.server.on('upgrade', this.upgrade.bind(this))
 
-        this.io.on('connection', async function(socket) {
-            console.log('socket connection')
+        //this.io = socketIo(this.server)
 
-            var app = this.applications[socket.handshake.query.app]
+        //this.io.on('connection', async function(socket) {
+        //    console.log('socket connection')
 
-            app.process.on('message', (msg) => {
-                socket.emit(msg.message, msg.data)
-            })
+        //    var app = this.applications[socket.handshake.query.app]
 
-            app.process.send({ message: 'main:connect', data: null })
+        //    app.process.on('message', (msg) => {
+        //        socket.emit(msg.message, msg.data)
+        //    })
 
-            socket.use((params, next) => {
-                app.process.send({ message: params[0], data: params[1] })
-            })
+        //    app.process.send({ message: 'main:connect', data: null })
+
+        //    socket.use((params, next) => {
+        //        app.process.send({ message: params[0], data: params[1] })
+        //    })
 
            // socket.use((socket, next) => {
            //     let clientId = socket.handshake.headers['x-clientid'];
@@ -101,19 +124,19 @@ export default class Engine {
             //    return next();
             //})
         
-            socket.on('disconnect', function(){
-                console.log('socket disconnect');
-            }.bind(this));
+        //    socket.on('disconnect', function(){
+        //        console.log('socket disconnect');
+        //    }.bind(this));
 
             //socket.emit("info", this.info)  
             //socket.emit("applications", Object.keys(this.applications))  
-        }.bind(this));
+        //}.bind(this));
 
-        this.app.use(bodyParser.json({ type: 'application/json', limit: '5mb' }))  // parse various different custom JSON types as JSON    
-        this.app.use(bodyParser.raw({ type: 'application/vnd.custom-type' })) // parse some custom thing into a Buffer      
-        this.app.use(bodyParser.text({ type: 'text/*', limit: '5mb' })) // body as string
-        //this.app.use(bodyParser.urlencoded({limit: '5mb'})); // parse body if mime "application/x-www-form-urlencoded"
-        this.app.use(this.router)
+        //this.app.use(bodyParser.json({ type: 'application/json', limit: '5mb' }))  // parse various different custom JSON types as JSON    
+        //this.app.use(bodyParser.raw({ type: 'application/vnd.custom-type' })) // parse some custom thing into a Buffer      
+        //this.app.use(bodyParser.text({ type: 'text/*', limit: '5mb' })) // body as string
+        ////this.app.use(bodyParser.urlencoded({limit: '5mb'})); // parse body if mime "application/x-www-form-urlencoded"
+        //this.app.use(this.router)
         // catch 404 and forward to error handler
         //this.app.use(function (err: any, req: express.Request, res: express.Response, next: express.NextFunction) {
         //    var error = new Error("Not Found");
@@ -125,14 +148,13 @@ export default class Engine {
         var port:number = 8080
 
         this.server.listen(port, host, function() {
-            console.log('Express started on %s:%d ...', host, port);
+            console.log('Engine proxy started on %s:%d ...', host, port);
         });
     }
 
     private async initMongo() {
-        if (this.db != null) return
         try {
-            this.db = await mongodb.MongoClient.connect(this.workingUrl)
+            this.db = await mongodb.MongoClient.connect(this.workingUrl, { autoReconnect: true })
             this.info["workingUrl"] = this.workingUrl.substring(this.workingUrl.indexOf('@')+1)
             console.log("WORKING Mongo initialized!")
             this.info["workingDBConnected"] = true
@@ -143,104 +165,96 @@ export default class Engine {
         }
     } 
 
-    private async initRouter() {
-        this.router = express.Router()
+    //private async initRouter() {
+    //    this.router = express.Router()
 
-        this.router.get("/", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
-            try{
-                res.redirect('/studio44/Static/getFile/client/index.html');
-            }
-            catch(err){
-                throw Error(err.message)
-            }
-        }.bind(this))
+    //    this.router.get("/", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
+    //        try{
+    //            res.redirect('/studio44/Static/getFile/client/index.html');
+    //        }
+    //        catch(err){
+    //            throw Error(err.message)
+    //        }
+    //    }.bind(this))
 
-        this.router.get("/env", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
-            try{
-                res.send(process.env)
-                res.end()
-            }
-            catch(err){
-                throw Error(err.message)
-            }
-        }.bind(this))
+    //    this.router.get("/env", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
+    //        try{
+    //            res.send(process.env)
+    //            res.end()
+    //        }
+    //        catch(err){
+    //            throw Error(err.message)
+    //        }
+    //    }.bind(this))
 
-        this.router.get("/info", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
-            try{
-                res.send(this.info)
-                res.end()
-            }
-            catch(err){
-                throw Error(err.message)
-            }
-        }.bind(this))
+    //    this.router.get("/info", async function (req: express.Request, res: express.Response, next: express.NextFunction) {
+    //        try{
+    //            res.send(this.info)
+    //            res.end()
+    //        }
+    //        catch(err){
+    //            throw Error(err.message)
+    //        }
+    //    }.bind(this))
 
-        this.router.get('/debugurl', function (req: express.Request, res: express.Response, next: express.NextFunction) {
-            request('http://localhost:9229/json/list', function (error, response, body) {
-                try{
-                    //debug route's host name is generated by OpenShift like this:
-                    var debugRouteHost = process.env.ENGINE_SERVICE_NAME + "-debug-" + process.env.OPENSHIFT_BUILD_NAMESPACE + ".44fs.preview.openshiftapps.com"
-                    var url = JSON.parse(body)[0].devtoolsFrontendUrl
-                    //url = url.replace("https://chrome-devtools-frontend.appspot.com", "chrome-devtools://devtools/remote")
-                    url = url.replace("localhost:9229", debugRouteHost)
-                    res.send(url)
-                    res.end()
-                }
-                catch(error){
-                    res.send(error)
-                }
-            })
-        });
+    //  this.router.get('/debugurl', function (req: express.Request, res: express.Response, next: express.NextFunction) {
+    //        request('http://localhost:9229/json/list', function (error, response, body) {
+    //            try{
+    //                //debug route's host name is generated by OpenShift like this:
+    //                var debugRouteHost = process.env.ENGINE_SERVICE_NAME + "-debug-" + process.env.OPENSHIFT_BUILD_NAMESPACE + ".44fs.preview.openshiftapps.com"
+    //                var url = JSON.parse(body)[0].devtoolsFrontendUrl
+    //                //url = url.replace("https://chrome-devtools-frontend.appspot.com", "chrome-devtools://devtools/remote")
+    //                url = url.replace("localhost:9229", debugRouteHost)
+    //                res.send(url)
+    //                res.end()
+    //            }
+    //           catch(error){
+    //               res.send(error)
+    //            }
+    //        })
+    //    });
 
-        this.router.get('/:application/:controller/:method/:url(*)?', async function (req: express.Request, res: express.Response, next: express.NextFunction) {
-            //console.log("get " + req.originalUrl)
-            var application = req.params["application"]
-            var controller = req.params["controller"]
-            var method = req.params["method"]
-            var url = req.params["url"]
-            try {
-                var app = this.applications[application]
-                if (!app){
-                    res.status(404)
-                    res.end()
-                    return
-                }
-                var result = null
+    //    this.router.get('/:application/:controller/:method/:url(*)?', async function (req: express.Request, res: express.Response, next: express.NextFunction) {
+    //        //console.log("get " + req.originalUrl)
+    //        var application = req.params["application"]
+    ///        var controller = req.params["controller"]
+    //        var method = req.params["method"]
+    //        var url = req.params["url"]
+    //        try {
+    //           var app = this.applications[application]
+    //            if (!app){
+    //                res.status(404)
+    //                res.end()
+    //                return
+    //            }
+    //            var result = null
 
-                //var fileInfo = await app.dbLoadFile(url)
-                //result = {status: 200, contentType: fileInfo.contentType, body: fileInfo.buffer}
-                var buffer = fsextra.readFileSync(app.livePath + '/' + url)
-                result = {status: 200, contentType: Utils.getMime(url), body: buffer}
+    //            //var fileInfo = await app.dbLoadFile(url)
+    //            //result = {status: 200, contentType: fileInfo.contentType, body: fileInfo.buffer}
+    //            var buffer = fsextra.readFileSync(app.livePath + '/' + url)
+    //            result = {status: 200, contentType: Utils.getMime(url), body: buffer}
 
-                res.status(result.status)
-                res.setHeader("Content-Type", result.contentType)
-                res.send(result.body)
-            }
-            catch (err) {
-                console.log(err)
-                res.status(500)
-                res.send(err.message)
-            }
-        }.bind(this))
-    }
-    
-    public async loadApplication(name:string) {
-        if (name != "studio44") return
-        if (this.applications[name]) return
-        var app = new Application(name, this)
-        this.applications[name] = app
-        await app.init()
-    }
+    //            res.status(result.status)
+    //            res.setHeader("Content-Type", result.contentType)
+    //            res.send(result.body)
+    //        }
+    //        catch (err) {
+    //            console.log(err)
+    //            res.status(500)
+    //            res.send(err.message)
+    //        }
+    //    }.bind(this))
+    //}
 
     public async loadApplications() {
-        if (!this.db) return
         this.applications = {}
-        var data = await this.db.listCollections({}).toArray() 
-        data.forEach(async function(element, index){
-            var name = element.name.split('.')[0]
-            if (name == "system") return
-            await this.loadApplication(name)
-        }.bind(this))
+        var apps = await this.db.listCollections({}).toArray() 
+        await Promise.all(apps.map(async app => { 
+            if (app.name != "helloworld") return
+            var app2 = new Application(app.name, this)
+            this.applications[app.name] = app2
+            await app2.init()
+        }))
     }
 
     //public async createApplication(name:string) : Promise<Application> {

@@ -10,6 +10,8 @@ import Utils from './utils'
 
 var cp = require('child_process')
 var npmi = require('npmi')
+var Git = require("nodegit")
+var gitkit = require('nodegit-kit')
 
 export default class Application {
 
@@ -28,8 +30,8 @@ export default class Application {
 
     public async init() {
         try {
+            await this.installFromGit()
             this.createChildProcess()
-            await this.install()
         }
         catch (err) {
             console.log("Application could not been loaded: " + this.name + ", " + err);
@@ -41,19 +43,20 @@ export default class Application {
         //process.execArgv = ["--inspect=9229"] 
         var modulePath = "dist/server/start"
         var args = []  //DEBUG: ["--debug-brk=9229"] 
-        var options = { cwd: this.path, env: { workingUrl: this.engine.workingUrl } }
+        var options = { cwd: this.livePath, env: { workingUrl: this.engine.workingUrl } }
         this.process = cp.fork(modulePath, args, options)
     }
 
-    public async install(){
+    public async installFromDb(){
         //if (fsextra.pathExistsSync(this.livePath)) return
         fsextra.ensureDirSync(this.livePath)
-        var filesArray = await this.engine.db.collection(this.name + ".files").find().toArray()
-        await Promise.all(filesArray.map(async file => { await this.installFile(file.filename) }))
+        var files = this.engine.db.collection("studio44.files").find()
+        var filesArray = await files.toArray()
+        await Promise.all(filesArray.map(async file => { await this.installFileFromDb(file.filename) }))
         await this.npminstall()
     }
    
-    public async installFile(path: string): Promise<void> {
+    public async installFileFromDb(path: string): Promise<void> {
         var readstream = this.engine.gridfs.createReadStream({
             filename: path,
             root: this.name
@@ -62,45 +65,93 @@ export default class Application {
         var fullPath = this.livePath + '/' + path
         fsextra.ensureDirSync(pathhelper.dirname(fullPath))
         fsextra.writeFileSync(fullPath, buffer, { flag: 'w' });
+        console.log("writeFileSync: " + fullPath)
+    }
+
+    public async installFromGit(){
+        if (fsextra.pathExistsSync(this.livePath)){
+            await this.updateFromGit()
+        }
+        else{
+            await this.cloneFromGit()
+        }
+        await this.npminstall()
+    }
+
+    public async cloneFromGit(): Promise<any> {
+        try {
+            console.log("clone...")
+            var url = await this.getRepositoryUrl()
+            //var cloneOptions = { fetchOpts: { callbacks: this.engine.getRemoteCallbacks() } }
+            var repo = await Git.Clone(url, this.livePath)
+            console.log("clone success")
+            return repo
+        }
+        catch(err){
+            console.log(err)
+            throw err
+        }
+    }
+
+    public async updateFromGit(): Promise<any> {
+        console.log("update...")
+        var repo = await Git.Repository.open(this.livePath) 
+        await repo.fetchAll()
+        var signature = this.getSignature()
+        await repo.mergeBranches("master", "origin/master", signature, null, { fileFavor: Git.Merge.FILE_FAVOR.THEIRS })
+        console.log("update success")
+        return repo
+    }
+
+    public getSignature(){
+        return Git.Signature.create("Foo bar", "foo@bar.com", 123456789, 60);
+    }
+
+    public async getRepositorySsh(): Promise<string> {
+        var registry = (await this.engine.db.collection(this.name).find().toArray())[0]
+        return registry.repository.ssh
+    }
+
+    public async getRepositoryUrl(): Promise<string> {
+        var registry = (await this.engine.db.collection(this.name).find().toArray())[0]
+        return registry.repository.url.replace("https://", "https://oauth2:" + this.engine.gitLabAccessToken + "@")
     }
 
     public async npminstall() {
-
+        console.log("npm install...")
         var options = {
 	        //name: 'react-split-pane',	// your module name
             //version: '3.10.9',		// expected version [default: 'latest']
 	        path: this.livePath,			// installation path [default: '.']
 	        forceInstall: false,	        // force install if set to true (even if already installed, it will do a reinstall) [default: false]
             npmLoad: {				    // npm.load(options, callback): this is the "options" given to npm.load()
-                loglevel: 'silent'	    // [default: {loglevel: 'silent'}]
+                loglevel: 'warn'	    // [default: {loglevel: 'silent'}]
             }
         }
-
-        function install (resolve, reject) {
+ 
+        function donpminstall (resolve, reject) {
             npmi(options, function (err, result) {
                 if (err) {
                     if (err.code === npmi.LOAD_ERR) {
                         console.log('npm load error')
-                        this.emit("log", "npm install: load error", "main")
                         reject(err)
                         return
                     }
                     if (err.code === npmi.INSTALL_ERR) {
                         console.log('npm install error: ' + err.message)
-                        this.emit("log", "npm install: " + err.message, "main")
                         reject(err)
                         return
                     }
+                    console.log('npm install error: ' + err.message);
                     reject(err)
-                    console.log(err.message);
-                    this.emit("log", "npm install: " + err.message, "main")
                 }
+                console.log('npm install success');
                 resolve(result)
 
             }.bind(this))
         }
 
-        return new Promise(install.bind(this))
+        return new Promise(donpminstall.bind(this))
     }
  
     public async dbLoadFileById(id: string): Promise<any> {
