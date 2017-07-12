@@ -207,10 +207,10 @@ export default class Engine {
                 }
                 var result = null
 
-                var fileInfo = await app.dbLoadFile(url)
-                result = {status: 200, contentType: fileInfo.contentType, body: fileInfo.buffer}
-                //var buffer = fsextra.readFileSync(app.path + '/dist/' + url)
-                //result = {status: 200, contentType: Utils.getMime(url), body: buffer}
+                //var fileInfo = await app.dbLoadFile(url)
+                //result = {status: 200, contentType: fileInfo.contentType, body: fileInfo.buffer}
+                var buffer = fsextra.readFileSync(app.livePath + '/' + url)
+                result = {status: 200, contentType: Utils.getMime(url), body: buffer}
 
                 res.status(result.status)
                 res.setHeader("Content-Type", result.contentType)

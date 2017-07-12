@@ -16,6 +16,8 @@ const request = require("request");
 const http = require("http");
 const socketIo = require("socket.io");
 const Application_1 = require("./Application");
+const utils_1 = require("./utils");
+const fsextra = require("fs-extra");
 class Engine {
     constructor() {
         this.info = {};
@@ -183,10 +185,10 @@ class Engine {
                             return;
                         }
                         var result = null;
-                        var fileInfo = yield app.dbLoadFile(url);
-                        result = { status: 200, contentType: fileInfo.contentType, body: fileInfo.buffer };
-                        //var buffer = fsextra.readFileSync(app.path + '/dist/' + url)
-                        //result = {status: 200, contentType: Utils.getMime(url), body: buffer}
+                        //var fileInfo = await app.dbLoadFile(url)
+                        //result = {status: 200, contentType: fileInfo.contentType, body: fileInfo.buffer}
+                        var buffer = fsextra.readFileSync(app.livePath + '/' + url);
+                        result = { status: 200, contentType: utils_1.default.getMime(url), body: buffer };
                         res.status(result.status);
                         res.setHeader("Content-Type", result.contentType);
                         res.send(result.body);
