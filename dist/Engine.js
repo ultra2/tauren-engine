@@ -25,9 +25,12 @@ class Engine {
         return __awaiter(this, void 0, void 0, function* () {
             //await this.initMongo()
             //this.gridfs = gridfs(this.db, mongodb);
-            var manager = new Application_1.default("manager", this);
+            var manager = new Application_1.default("manager", 5000, this);
             this.applications["manager"] = manager;
             yield manager.init();
+            var studio = new Application_1.default("studio", 5001, this);
+            this.applications["studio"] = studio;
+            yield studio.init();
             //await this.loadApplications()
             //await this.updateStudio()
             //await this.initRouter()

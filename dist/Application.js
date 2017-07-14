@@ -18,12 +18,12 @@ var npmi = require('npmi');
 var Git = require("nodegit");
 var gitkit = require('nodegit-kit');
 class Application {
-    constructor(application, engine) {
+    constructor(application, port, engine) {
         this.name = application;
         this.path = "/tmp/repos/" + this.name;
         this.livePath = "/tmp/live/" + this.name;
         this.engine = engine;
-        this.port = 5000;
+        this.port = port;
     }
     init() {
         return __awaiter(this, void 0, void 0, function* () {
@@ -125,7 +125,7 @@ class Application {
     getRepositoryUrl() {
         return __awaiter(this, void 0, void 0, function* () {
             //var registry = (await this.engine.db.collection(this.name).find().toArray())[0]
-            var registry = { repository: { url: "https://gitlab.com/ultra2/manager.git" } };
+            var registry = { repository: { url: "https://gitlab.com/ultra2/" + this.name + ".git" } };
             return registry.repository.url.replace("https://", "https://oauth2:" + this.engine.gitLabAccessToken + "@");
         });
     }

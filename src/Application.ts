@@ -22,12 +22,12 @@ export default class Application {
     public process: any
     public port: number
     
-    constructor(application: string, engine: Engine) {
+    constructor(application: string, port: number, engine: Engine) {
         this.name = application
         this.path = "/tmp/repos/" + this.name
         this.livePath = "/tmp/live/" + this.name
         this.engine = engine
-        this.port = 5000
+        this.port = port
     }
 
     public async init() {
@@ -127,7 +127,7 @@ export default class Application {
  
     public async getRepositoryUrl(): Promise<string> {
         //var registry = (await this.engine.db.collection(this.name).find().toArray())[0]
-        var registry = { repository: { url: "https://gitlab.com/ultra2/manager.git" } }
+        var registry = { repository: { url: "https://gitlab.com/ultra2/" + this.name + ".git" } }
         return registry.repository.url.replace("https://", "https://oauth2:" + this.engine.gitLabAccessToken + "@")
     }
 
