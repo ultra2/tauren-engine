@@ -60,7 +60,8 @@ export default class Engine {
 
         if (!this.applications[app]){
             console.log("app is null")
-            res.send("app is null")
+            res.writeHead(200, {'Content-Type': 'text/plain'});
+            res.write("app is null");
             res.end()
             return
         }
@@ -79,7 +80,8 @@ export default class Engine {
         
         if (!this.applications[app]){
             console.log("app is null")
-            res.send("app is null")
+            res.writeHead(200, {'Content-Type': 'text/plain'});
+            res.write("app is null");
             res.end()
             return
         }

@@ -39,7 +39,8 @@ class Engine {
         var app = req.headers.host.substr(0, req.headers.host.indexOf('.'));
         if (!this.applications[app]) {
             console.log("app is null");
-            res.send("app is null");
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.write("app is null");
             res.end();
             return;
         }
@@ -54,7 +55,8 @@ class Engine {
         var app = req.headers.host.substr(0, req.headers.host.indexOf('.'));
         if (!this.applications[app]) {
             console.log("app is null");
-            res.send("app is null");
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.write("app is null");
             res.end();
             return;
         }
