@@ -9,7 +9,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const http = require("http");
-//var https = require('https');
 const Application_1 = require("./Application");
 var httpProxy = require('http-proxy');
 class Engine {
@@ -40,6 +39,8 @@ class Engine {
         var app = req.headers.host.substr(0, req.headers.host.indexOf('.'));
         if (!this.applications[app]) {
             console.log("app is null");
+            res.send("app is null");
+            res.end();
             return;
         }
         this.proxy.web(req, res, {
@@ -53,6 +54,8 @@ class Engine {
         var app = req.headers.host.substr(0, req.headers.host.indexOf('.'));
         if (!this.applications[app]) {
             console.log("app is null");
+            res.send("app is null");
+            res.end();
             return;
         }
         this.proxy.ws(req, res, {
@@ -120,7 +123,7 @@ class Engine {
             //    next(err);
             //});
             console.log(process.env);
-            var host = process.env.IP || "127.0.0.1";
+            var host = process.env.IP || "0.0.0.0";
             var port = parseInt(process.env.PORT) || 8080;
             this.server.listen(port, host, function () {
                 console.log('Engine proxy started on %s:%d ...', host, port);

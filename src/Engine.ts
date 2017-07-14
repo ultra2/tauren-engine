@@ -8,7 +8,7 @@ import * as mongodb from "mongodb"
 import * as gridfs from "gridfs-stream"
 import * as request from "request"
 import http = require('http')
-//var https = require('https');
+import https = require('https')
 import Application from './Application'
 import Utils from './utils'
 import * as fsextra from 'fs-extra'
@@ -60,6 +60,8 @@ export default class Engine {
 
         if (!this.applications[app]){
             console.log("app is null")
+            res.send("app is null")
+            res.end()
             return
         }
 
@@ -77,6 +79,8 @@ export default class Engine {
         
         if (!this.applications[app]){
             console.log("app is null")
+            res.send("app is null")
+            res.end()
             return
         }
         
@@ -165,7 +169,7 @@ export default class Engine {
 
         console.log(process.env)
 
-        var host:string = process.env.IP || "127.0.0.1"
+        var host:string = process.env.IP || "0.0.0.0"
         var port:number = parseInt(process.env.PORT) || 8080
 
         this.server.listen(port, host, function() {
