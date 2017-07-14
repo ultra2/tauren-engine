@@ -47,8 +47,16 @@ export default class Application {
         process.execArgv = [] //DEBUG: ["--debug-brk=9229"] 
         //process.execArgv = ["--inspect=9229"] 
         var modulePath = pkgobj["main"] || "dist/server/start"
+        var cwd = this.livePath
+
+        var pos = modulePath.lastIndexOf('/')
+        if (pos != -1){
+            cwd += '/' + modulePath.substr(0, pos)
+            modulePath = modulePath.substr(pos+1)
+        }
+
         var args = []  //DEBUG: ["--debug-brk=9229"] 
-        var options = { cwd: this.livePath, env: { workingUrl: this.engine.workingUrl, PORT: this.port } }
+        var options = { cwd: cwd, env: { workingUrl: this.engine.workingUrl, PORT: this.port } }
         this.process = cp.fork(modulePath, args, options)
     }
 

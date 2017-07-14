@@ -53,4 +53,11 @@ class Utils {
         return mime.lookup(path);
     }
 }
+Utils.parseUrl = function (url) {
+    var pos = url.split('/', 2).join('/').length;
+    return {
+        app: url.substr(1, pos - 1),
+        url: url.substr(pos)
+    };
+};
 exports.default = Utils;

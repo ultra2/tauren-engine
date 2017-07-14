@@ -60,4 +60,12 @@ export default class Utils {
     if (ext == ".tsx") return "application/typescript"
     return mime.lookup(path)
   }
+
+  static parseUrl = function(url){
+	  var pos = url.split('/', 2).join('/').length
+	  return {
+		  app: url.substr(1,pos-1),
+		  url: url.substr(pos)
+    }
+  }
 }
