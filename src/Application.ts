@@ -20,12 +20,14 @@ export default class Application {
     public path: string
     public livePath: string
     public process: any
+    public port: number
     
     constructor(application: string, engine: Engine) {
         this.name = application
         this.path = "/tmp/repos/" + this.name
         this.livePath = "/tmp/live/" + this.name
         this.engine = engine
+        this.port = 5000
     }
 
     public async init() {
@@ -39,11 +41,14 @@ export default class Application {
     }
 
     public createChildProcess(){
+        var pkg = fsextra.readFileSync(this.livePath + "/package.json")
+        var pkgobj = JSON.parse(pkg.toString())
+
         process.execArgv = [] //DEBUG: ["--debug-brk=9229"] 
         //process.execArgv = ["--inspect=9229"] 
-        var modulePath = "dist/server/start"
+        var modulePath = pkgobj["main"] || "dist/server/start"
         var args = []  //DEBUG: ["--debug-brk=9229"] 
-        var options = { cwd: this.livePath, env: { workingUrl: this.engine.workingUrl } }
+        var options = { cwd: this.livePath, env: { workingUrl: this.engine.workingUrl, PORT: this.port } }
         this.process = cp.fork(modulePath, args, options)
     }
 
@@ -111,9 +116,10 @@ export default class Application {
         var registry = (await this.engine.db.collection(this.name).find().toArray())[0]
         return registry.repository.ssh
     }
-
+ 
     public async getRepositoryUrl(): Promise<string> {
-        var registry = (await this.engine.db.collection(this.name).find().toArray())[0]
+        //var registry = (await this.engine.db.collection(this.name).find().toArray())[0]
+        var registry = { repository: { url: "https://gitlab.com/ultra2/manager.git" } }
         return registry.repository.url.replace("https://", "https://oauth2:" + this.engine.gitLabAccessToken + "@")
     }
 

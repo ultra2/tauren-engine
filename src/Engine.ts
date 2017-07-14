@@ -1,5 +1,6 @@
 "use strict";
 
+import * as util from 'util'
 import * as path from 'path'
 //import * as express from "express"
 import * as bodyParser from "body-parser"
@@ -12,7 +13,6 @@ import Application from './Application'
 import Utils from './utils'
 import * as fsextra from 'fs-extra'
 var httpProxy = require('http-proxy')
-
 
 export default class Engine {
 
@@ -39,10 +39,14 @@ export default class Engine {
     }
 
     public async run() {
-        await this.initMongo()
-        this.gridfs = gridfs(this.db, mongodb);
+        //await this.initMongo()
+        //this.gridfs = gridfs(this.db, mongodb);
 
-        await this.loadApplications()
+        var manager = new Application("manager", this)
+        this.applications["manager"] = manager
+        await manager.init()
+
+        //await this.loadApplications()
         //await this.updateStudio()
 
         //await this.initRouter()
@@ -50,19 +54,34 @@ export default class Engine {
     }
 
     private middleware(req, res) {
-        console.log("req.url: " + req.url)
+        console.log("http: " + req.url)// + ", headers: " + util.inspect(req.headers, false, null))
+
+        var app = req.headers.host.substr(0, req.headers.host.indexOf('.'))
+
+        if (!this.applications[app]){
+            console.log("app is null")
+            return
+        }
+
         this.proxy.web(req, res, {
-            target: 'http://localhost:3000'
+            target: 'http://localhost:' + this.applications[app].port
         },function(e){
             console.log(e,req);
         });
     }
 
     private upgrade(req,res){
-        console.log("ws: " + req.url)
+        console.log("ws: " + req.url)// + ", headers: " + util.inspect(req.headers, false, null))
+	
+        var app = req.headers.host.substr(0, req.headers.host.indexOf('.'))
+        
+        if (!this.applications[app]){
+            console.log("app is null")
+            return
+        }
         
         this.proxy.ws(req, res, {
-            target: 'http://localhost:3000'
+            target: 'http://localhost:' + this.applications[app].port
         },function(e){
             console.log(e,req);
         });
@@ -144,26 +163,28 @@ export default class Engine {
         //    next(err);
         //});
 
-        var host:string = "0.0.0.0"
-        var port:number = 8080
+        console.log(process.env)
+
+        var host:string = process.env.IP || "127.0.0.1"
+        var port:number = parseInt(process.env.PORT) || 8080
 
         this.server.listen(port, host, function() {
             console.log('Engine proxy started on %s:%d ...', host, port);
         });
     }
 
-    private async initMongo() {
-        try {
-            this.db = await mongodb.MongoClient.connect(this.workingUrl, { autoReconnect: true })
-            this.info["workingUrl"] = this.workingUrl.substring(this.workingUrl.indexOf('@')+1)
-            console.log("WORKING Mongo initialized!")
-            this.info["workingDBConnected"] = true
-        }
-        catch (err) { 
-            console.log('WORKING Mongo error: ', err.message)
-            this.info["workingDBConnected"] = false
-        }
-    } 
+    //private async initMongo() {
+    //    try {
+    //        this.db = await mongodb.MongoClient.connect(this.workingUrl, { autoReconnect: true })
+    //        this.info["workingUrl"] = this.workingUrl.substring(this.workingUrl.indexOf('@')+1)
+    //        console.log("WORKING Mongo initialized!")
+    //        this.info["workingDBConnected"] = true
+    //    }
+    //    catch (err) { 
+    //        console.log('WORKING Mongo error: ', err.message)
+    //        this.info["workingDBConnected"] = false
+    //    }
+    //} 
 
     //private async initRouter() {
     //    this.router = express.Router()
@@ -246,16 +267,16 @@ export default class Engine {
     //    }.bind(this))
     //}
 
-    public async loadApplications() {
-        this.applications = {}
-        var apps = await this.db.listCollections({}).toArray() 
-        await Promise.all(apps.map(async app => { 
-            if (app.name != "helloworld") return
-            var app2 = new Application(app.name, this)
-            this.applications[app.name] = app2
-            await app2.init()
-        }))
-    }
+    //public async loadApplications() {
+    //    this.applications = {}
+    //    var apps = await this.db.listCollections({}).toArray() 
+    //    await Promise.all(apps.map(async app => { 
+    //        if (app.name != "manager") return
+    //        var app2 = new Application(app.name, this)
+    //        this.applications[app.name] = app2
+    //        await app2.init()
+    //    }))
+    //}
 
     //public async createApplication(name:string) : Promise<Application> {
         //var app = new Application(name, this)
