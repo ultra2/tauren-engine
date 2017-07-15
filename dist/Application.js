@@ -18,25 +18,13 @@ var npmi = require('npmi');
 var Git = require("nodegit");
 var gitkit = require('nodegit-kit');
 class Application {
-    constructor(application, port, engine) {
+    constructor(application, engine) {
         this.name = application;
         this.path = "/tmp/repos/" + this.name;
-        this.livePath = "/tmp/live/" + this.name;
         this.engine = engine;
-        this.port = port;
+        this.livePath = this.engine.livePath + '/' + this.name;
     }
-    init() {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                yield this.installFromGit();
-                this.createChildProcess();
-            }
-            catch (err) {
-                console.log("Application could not been loaded: " + this.name + ", " + err);
-            }
-        });
-    }
-    createChildProcess() {
+    run() {
         var pkg = fsextra.readFileSync(this.livePath + "/package.json");
         var pkgobj = JSON.parse(pkg.toString());
         process.execArgv = []; //DEBUG: ["--debug-brk=9229"] 
@@ -48,11 +36,42 @@ class Application {
             cwd += '/' + modulePath.substr(0, pos);
             modulePath = modulePath.substr(pos + 1);
         }
+        this.port = this.engine.getFreePort();
         var args = []; //DEBUG: ["--debug-brk=9229"] 
         var options = { cwd: cwd, env: { workingUrl: this.engine.workingUrl, PORT: this.port } };
         this.process = cp.fork(modulePath, args, options);
-        this.process.on('message', function (data) {
-            console.log(data);
+        this.process.on('message', this.onMessage.bind(this));
+    }
+    onMessage(message) {
+        console.log(message);
+        switch (message.command) {
+            case "applications":
+                this.applications(message.data);
+                break;
+            case "update":
+                this.onUpdate(message.data);
+                break;
+            case "install":
+                this.onInstall(message.data);
+                break;
+        }
+    }
+    applications(data) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var applications = Object.keys(this.engine.applications);
+            this.process.send({ command: "applications", data: applications });
+        });
+    }
+    onUpdate(data) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var app = this.engine.applications[data.app];
+            app.updateFromGit();
+        });
+    }
+    onInstall(data) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var app = yield this.engine.install(data.name, data.url);
+            yield app.run();
         });
     }
     installFromDb() {
@@ -78,22 +97,11 @@ class Application {
             console.log("writeFileSync: " + fullPath);
         });
     }
-    installFromGit() {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (fsextra.pathExistsSync(this.livePath)) {
-                yield this.updateFromGit();
-            }
-            else {
-                yield this.cloneFromGit();
-            }
-            yield this.npminstall();
-        });
-    }
-    cloneFromGit() {
+    cloneFromGit(url) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 console.log("clone...");
-                var url = yield this.getRepositoryUrl();
+                //var url = await this.getRepositoryUrl()
                 //var cloneOptions = { fetchOpts: { callbacks: this.engine.getRemoteCallbacks() } }
                 var repo = yield Git.Clone(url, this.livePath);
                 console.log("clone success");
@@ -125,13 +133,11 @@ class Application {
             return registry.repository.ssh;
         });
     }
-    getRepositoryUrl() {
-        return __awaiter(this, void 0, void 0, function* () {
-            //var registry = (await this.engine.db.collection(this.name).find().toArray())[0]
-            var registry = { repository: { url: "https://gitlab.com/ultra2/" + this.name + ".git" } };
-            return registry.repository.url.replace("https://", "https://oauth2:" + this.engine.gitLabAccessToken + "@");
-        });
-    }
+    //public async getRepositoryUrl(): Promise<string> {
+    //var registry = (await this.engine.db.collection(this.name).find().toArray())[0]
+    //    var registry = { repository: { url: "https://gitlab.com/ultra2/" + this.name + ".git" } }
+    //    return registry.repository.url.replace("https://", "https://oauth2:" + this.engine.gitLabAccessToken + "@")
+    //}
     npminstall() {
         return __awaiter(this, void 0, void 0, function* () {
             console.log("npm install...");

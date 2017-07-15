@@ -27,6 +27,7 @@ export default class Engine {
     public workingUrl: string
     public templateUrl: string
     public gitLabAccessToken: string
+    public livePath: string
 
     constructor() {
         this.proxy = httpProxy.createProxy({ ws : true });
@@ -36,19 +37,25 @@ export default class Engine {
         //this.templateUrl = "mongodb://guest:guest@ds117189.mlab.com:17189/ide"
         this.workingUrl = "mongodb://admin:Leonardo19770206Z@ds056549.mlab.com:56549/tauren"
         this.gitLabAccessToken = "k5T9xs82anhKt1JKaM39"
+        this.livePath = "/tmp/live"
     }
 
     public async run() {
         //await this.initMongo()
         //this.gridfs = gridfs(this.db, mongodb);
 
-        var manager = new Application("manager", 5000, this)
-        this.applications["manager"] = manager
-        await manager.init()
+        this.addApplications()
+        await this.ensureManager()
+        await this.updateApplications()
+        await this.runApplications()
 
-        var studio = new Application("studio", 5001, this)
-        this.applications["studio"] = studio
-        await studio.init()
+        //var manager = new Application("manager", 5000, this)
+        //this.applications["manager"] = manager
+        //await manager.init()
+
+        //var studio = new Application("studio", 5001, this)
+        //this.applications["studio"] = studio
+        //await studio.init()
 
         //await this.loadApplications()
         //await this.updateStudio()
@@ -63,9 +70,17 @@ export default class Engine {
         var app = req.headers.host.substr(0, req.headers.host.indexOf('.'))
 
         if (!this.applications[app]){
-            console.log("app is null")
+            console.log("App doesn't exists!")
             res.writeHead(200, {'Content-Type': 'text/plain'});
-            res.write("app is null");
+            res.write("App doesn't exists!");
+            res.end()
+            return
+        }
+
+        if (!this.applications[app].process){
+            console.log("App is not started!")
+            res.writeHead(200, {'Content-Type': 'text/plain'});
+            res.write("App is not started!");
             res.end()
             return
         }
@@ -82,10 +97,18 @@ export default class Engine {
 	
         var app = req.headers.host.substr(0, req.headers.host.indexOf('.'))
         
-        if (!this.applications[app]){
-            console.log("app is null")
+       if (!this.applications[app]){
+            console.log("App doesn't exists!")
             res.writeHead(200, {'Content-Type': 'text/plain'});
-            res.write("app is null");
+            res.write("App doesn't exists!");
+            res.end()
+            return
+        }
+
+        if (!this.applications[app].process){
+            console.log("App is not started!")
+            res.writeHead(200, {'Content-Type': 'text/plain'});
+            res.write("App is not started!");
             res.end()
             return
         }
@@ -173,7 +196,7 @@ export default class Engine {
         //    next(err);
         //});
 
-        console.log(process.env)
+        //console.log(process.env)
 
         var host:string = process.env.IP || "0.0.0.0"
         var port:number = parseInt(process.env.PORT) || 8080
@@ -276,6 +299,63 @@ export default class Engine {
     //        }
     //    }.bind(this))
     //}
+
+    public addApplications() {
+        fsextra.ensureDir(this.livePath)
+        this.applications = {}
+        var directories = fsextra.readdirSync(this.livePath)
+        for (var i in directories) {
+            var dir = directories[i]
+            if (!fsextra.lstatSync(path.join(this.livePath, dir)).isDirectory()) continue
+            var app = new Application(dir, this)
+            this.applications[app.name] = app
+        }
+    }
+
+    public async install(name: string, url: string){
+        var app = new Application(name, this)
+        url = url.replace("https://", "https://oauth2:" + this.gitLabAccessToken + "@")
+        await app.cloneFromGit(url)
+        await app.npminstall()
+        this.applications[app.name] = app
+        return app
+    }
+
+    public async ensureManager() {
+        if (this.applications["manager"]) return
+        return await this.install("manager", "https://gitlab.com/ultra2/manager.git")
+    }
+
+    public async updateApplications(){
+        await Promise.all(this.getApplications().map(async app => {
+            await app.updateFromGit()
+            await app.npminstall()
+        }))
+    }
+
+    public async runApplications(){
+        await Promise.all(this.getApplications().map(async app => {
+            await app.run()
+        }))
+    }
+
+    public getApplications(): Array<Application>{
+        var applications: Array<Application> = []
+        Object.keys(this.applications).map(function(key) {
+            applications.push(this.applications[key])
+        }.bind(this))
+        return applications
+    }
+
+    public getFreePort():number{
+        var ports = []
+        for (var i in this.applications) {
+            ports.push(this.applications[i].port)
+        }
+        var result = 3000
+        while (ports.indexOf(result) != -1) result++
+        return result
+    }
 
     //public async loadApplications() {
     //    this.applications = {}

@@ -22,25 +22,14 @@ export default class Application {
     public process: any
     public port: number
     
-    constructor(application: string, port: number, engine: Engine) {
+    constructor(application: string, engine: Engine) {
         this.name = application
         this.path = "/tmp/repos/" + this.name
-        this.livePath = "/tmp/live/" + this.name
         this.engine = engine
-        this.port = port
+        this.livePath = this.engine.livePath + '/' + this.name
     }
 
-    public async init() {
-        try {
-            await this.installFromGit()
-            this.createChildProcess()
-        }
-        catch (err) {
-            console.log("Application could not been loaded: " + this.name + ", " + err);
-        }
-    }
-
-    public createChildProcess(){
+    public run(){
         var pkg = fsextra.readFileSync(this.livePath + "/package.json")
         var pkgobj = JSON.parse(pkg.toString())
 
@@ -54,15 +43,36 @@ export default class Application {
             cwd += '/' + modulePath.substr(0, pos)
             modulePath = modulePath.substr(pos+1)
         }
-
+        this.port = this.engine.getFreePort()
         var args = []  //DEBUG: ["--debug-brk=9229"] 
         var options = { cwd: cwd, env: { workingUrl: this.engine.workingUrl, PORT: this.port } }
         this.process = cp.fork(modulePath, args, options)
 
-        this.process.on('message', function(data) {
-            console.log(data)
-        })
+        this.process.on('message', this.onMessage.bind(this))
+    }
 
+    public onMessage(message){
+        console.log(message)
+        switch (message.command){
+            case "applications": this.applications(message.data); break
+            case "update": this.onUpdate(message.data); break
+            case "install": this.onInstall(message.data);  break
+        }
+    }
+
+    public async applications(data){
+        var applications = Object.keys(this.engine.applications)
+        this.process.send({ command: "applications", data: applications })
+    }
+
+    public async onUpdate(data){
+        var app = this.engine.applications[data.app]
+        app.updateFromGit()
+    }
+
+    public async onInstall(data){
+        var app = await this.engine.install(data.name, data.url)
+        await app.run()
     }
 
     public async installFromDb(){
@@ -86,20 +96,10 @@ export default class Application {
         console.log("writeFileSync: " + fullPath)
     }
 
-    public async installFromGit(){
-        if (fsextra.pathExistsSync(this.livePath)){
-            await this.updateFromGit()
-        }
-        else{
-            await this.cloneFromGit()
-        }
-        await this.npminstall()
-    }
-
-    public async cloneFromGit(): Promise<any> {
+    public async cloneFromGit(url: string): Promise<any> {
         try {
             console.log("clone...")
-            var url = await this.getRepositoryUrl()
+            //var url = await this.getRepositoryUrl()
             //var cloneOptions = { fetchOpts: { callbacks: this.engine.getRemoteCallbacks() } }
             var repo = await Git.Clone(url, this.livePath)
             console.log("clone success")
@@ -130,11 +130,11 @@ export default class Application {
         return registry.repository.ssh
     }
  
-    public async getRepositoryUrl(): Promise<string> {
+    //public async getRepositoryUrl(): Promise<string> {
         //var registry = (await this.engine.db.collection(this.name).find().toArray())[0]
-        var registry = { repository: { url: "https://gitlab.com/ultra2/" + this.name + ".git" } }
-        return registry.repository.url.replace("https://", "https://oauth2:" + this.engine.gitLabAccessToken + "@")
-    }
+    //    var registry = { repository: { url: "https://gitlab.com/ultra2/" + this.name + ".git" } }
+    //    return registry.repository.url.replace("https://", "https://oauth2:" + this.engine.gitLabAccessToken + "@")
+    //}
 
     public async npminstall() {
         console.log("npm install...")
