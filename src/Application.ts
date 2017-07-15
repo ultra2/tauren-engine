@@ -58,6 +58,11 @@ export default class Application {
         var args = []  //DEBUG: ["--debug-brk=9229"] 
         var options = { cwd: cwd, env: { workingUrl: this.engine.workingUrl, PORT: this.port } }
         this.process = cp.fork(modulePath, args, options)
+
+        this.process.on('message', function(data) {
+            console.log(data)
+        })
+
     }
 
     public async installFromDb(){
