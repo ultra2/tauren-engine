@@ -67,8 +67,8 @@ docker push ultra2/tauren-engine
 
 Compile 
 -------------------------
-engine: tsc *.ts  --outDir ../dist --target es6 --module commonjs --moduleResolution node  -w  (from src folder)
-studio server: tsc *.ts  --outDir ./dist/server --target es6 --moduleResolution node  -w 
+engine:        tsc *.ts  --outDir ../dist       --target es6 --moduleResolution node --module commonjs  -w  (from src folder)
+studio server: tsc *.ts  --outDir ./dist/server --target es6 --moduleResolution node --module commonjs  -w 
 studio client: tsc *.tsx --outFile ./dist/client/main-all.js --jsx react --lib 'es2015','dom' --module amd --moduleResolution node  -w
 
 

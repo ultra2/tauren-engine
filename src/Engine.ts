@@ -44,11 +44,16 @@ export default class Engine {
         //await this.initMongo()
         //this.gridfs = gridfs(this.db, mongodb);
 
-        this.addApplications()
-        await this.ensureManager()
-        await this.updateApplications()
-        await this.runApplications()
-
+        try{
+            this.addApplications()
+            await this.ensureManager()
+            await this.updateApplications()
+            await this.runApplications()
+        }
+        catch(err){
+            console.log(err)
+        }
+    
         //var manager = new Application("manager", 5000, this)
         //this.applications["manager"] = manager
         //await manager.init()
