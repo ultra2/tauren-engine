@@ -39,10 +39,10 @@ export default class Application {
         var cwd = this.livePath
 
         var pos = modulePath.lastIndexOf('/')
-        if (pos != -1){
-            cwd += '/' + modulePath.substr(0, pos)
-            modulePath = modulePath.substr(pos+1)
-        }
+        //if (pos != -1){
+        //    cwd += '/' + modulePath.substr(0, pos)
+        //    modulePath = modulePath.substr(pos+1)
+        //} 
         this.port = this.engine.getFreePort()
         var args = []  //DEBUG: ["--debug-brk=9229"] 
         var options = { cwd: cwd, env: { workingUrl: this.engine.workingUrl, PORT: this.port } }
@@ -57,6 +57,7 @@ export default class Application {
             case "applications": this.applications(message.data); break
             case "update": this.onUpdate(message.data); break
             case "install": this.onInstall(message.data);  break
+            case "uninstall": this.onUninstall(message.data);  break
         }
     }
 
@@ -73,6 +74,10 @@ export default class Application {
     public async onInstall(data){
         var app = await this.engine.install(data.name, data.url)
         await app.run()
+    }
+
+    public async onUninstall(data){
+        await this.engine.uninstall(data.name)
     }
 
     public async installFromDb(){
@@ -112,12 +117,12 @@ export default class Application {
     }
 
     public async updateFromGit(): Promise<any> {
-        console.log("update...")
+        console.log(this.name + " update...")
         var repo = await Git.Repository.open(this.livePath) 
         await repo.fetchAll()
         var signature = this.getSignature()
         await repo.mergeBranches("master", "origin/master", signature, null, { fileFavor: Git.Merge.FILE_FAVOR.THEIRS })
-        console.log("update success")
+        console.log(this.name + " update success")
         return repo
     }
 
@@ -137,7 +142,7 @@ export default class Application {
     //}
 
     public async npminstall() {
-        console.log("npm install...")
+        console.log(this.name + " npm install...")
         var options = {
 	        //name: 'react-split-pane',	// your module name
             //version: '3.10.9',		// expected version [default: 'latest']
@@ -164,7 +169,7 @@ export default class Application {
                     console.log('npm install error: ' + err.message);
                     reject(err)
                 }
-                console.log('npm install success');
+                console.log(this.name + " npm install success");
                 resolve(result)
 
             }.bind(this))

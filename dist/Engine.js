@@ -48,16 +48,16 @@ class Engine {
         console.log("http: " + req.url); // + ", headers: " + util.inspect(req.headers, false, null))
         var app = req.headers.host.substr(0, req.headers.host.indexOf('.'));
         if (!this.applications[app]) {
-            console.log("App doesn't exists!");
+            console.log("App doesn't exists: " + app);
             res.writeHead(200, { 'Content-Type': 'text/plain' });
-            res.write("App doesn't exists!");
+            res.write("App doesn't exists: " + app);
             res.end();
             return;
         }
         if (!this.applications[app].process) {
-            console.log("App is not started!");
+            console.log("App is not started: " + app);
             res.writeHead(200, { 'Content-Type': 'text/plain' });
-            res.write("App is not started!");
+            res.write("App is not started: " + app);
             res.end();
             return;
         }
@@ -71,16 +71,16 @@ class Engine {
         console.log("ws: " + req.url); // + ", headers: " + util.inspect(req.headers, false, null))
         var app = req.headers.host.substr(0, req.headers.host.indexOf('.'));
         if (!this.applications[app]) {
-            console.log("App doesn't exists!");
+            console.log("App doesn't exists: " + app);
             res.writeHead(200, { 'Content-Type': 'text/plain' });
-            res.write("App doesn't exists!");
+            res.write("App doesn't exists: " + app);
             res.end();
             return;
         }
         if (!this.applications[app].process) {
-            console.log("App is not started!");
+            console.log("App is not started: " + app);
             res.writeHead(200, { 'Content-Type': 'text/plain' });
-            res.write("App is not started!");
+            res.write("App is not started: " + app);
             res.end();
             return;
         }
@@ -261,6 +261,18 @@ class Engine {
             yield app.npminstall();
             this.applications[app.name] = app;
             return app;
+        });
+    }
+    uninstall(name) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var app = this.applications[name];
+            app.process.on('close', function (code, signal) {
+                console.log("child process terminated due to receipt of signal ${signal}");
+                fsextra.emptyDirSync(app.livePath);
+                fsextra.rmdirSync(app.livePath);
+                delete this.applications[name];
+            }.bind(this));
+            app.process.kill();
         });
     }
     ensureManager() {

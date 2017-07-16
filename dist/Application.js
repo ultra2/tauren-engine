@@ -32,10 +32,10 @@ class Application {
         var modulePath = pkgobj["main"] || "dist/server/start";
         var cwd = this.livePath;
         var pos = modulePath.lastIndexOf('/');
-        if (pos != -1) {
-            cwd += '/' + modulePath.substr(0, pos);
-            modulePath = modulePath.substr(pos + 1);
-        }
+        //if (pos != -1){
+        //    cwd += '/' + modulePath.substr(0, pos)
+        //    modulePath = modulePath.substr(pos+1)
+        //} 
         this.port = this.engine.getFreePort();
         var args = []; //DEBUG: ["--debug-brk=9229"] 
         var options = { cwd: cwd, env: { workingUrl: this.engine.workingUrl, PORT: this.port } };
@@ -53,6 +53,9 @@ class Application {
                 break;
             case "install":
                 this.onInstall(message.data);
+                break;
+            case "uninstall":
+                this.onUninstall(message.data);
                 break;
         }
     }
@@ -72,6 +75,11 @@ class Application {
         return __awaiter(this, void 0, void 0, function* () {
             var app = yield this.engine.install(data.name, data.url);
             yield app.run();
+        });
+    }
+    onUninstall(data) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this.engine.uninstall(data.name);
         });
     }
     installFromDb() {
@@ -115,12 +123,12 @@ class Application {
     }
     updateFromGit() {
         return __awaiter(this, void 0, void 0, function* () {
-            console.log("update...");
+            console.log(this.name + " update...");
             var repo = yield Git.Repository.open(this.livePath);
             yield repo.fetchAll();
             var signature = this.getSignature();
             yield repo.mergeBranches("master", "origin/master", signature, null, { fileFavor: Git.Merge.FILE_FAVOR.THEIRS });
-            console.log("update success");
+            console.log(this.name + " update success");
             return repo;
         });
     }
@@ -140,7 +148,7 @@ class Application {
     //}
     npminstall() {
         return __awaiter(this, void 0, void 0, function* () {
-            console.log("npm install...");
+            console.log(this.name + " npm install...");
             var options = {
                 //name: 'react-split-pane',	// your module name
                 //version: '3.10.9',		// expected version [default: 'latest']
@@ -166,7 +174,7 @@ class Application {
                         console.log('npm install error: ' + err.message);
                         reject(err);
                     }
-                    console.log('npm install success');
+                    console.log(this.name + " npm install success");
                     resolve(result);
                 }.bind(this));
             }
