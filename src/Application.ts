@@ -4,7 +4,7 @@ import Engine from './Engine'
 import * as pathhelper from 'path'
 import * as mongodb from "mongodb"
 import * as moment from 'moment'
-import * as uuid from "node-uuid"
+import * as uuid from "uuid"
 import * as fsextra from 'fs-extra'
 import Utils from './utils'
 

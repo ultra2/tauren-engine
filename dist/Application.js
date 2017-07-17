@@ -10,7 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 const pathhelper = require("path");
 const moment = require("moment");
-const uuid = require("node-uuid");
+const uuid = require("uuid");
 const fsextra = require("fs-extra");
 const utils_1 = require("./utils");
 var cp = require('child_process');
