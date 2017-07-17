@@ -276,10 +276,24 @@ class Engine {
         return __awaiter(this, void 0, void 0, function* () {
             var app = this.applications[name];
             app.process.on('close', function (code, signal) {
-                console.log("child process terminated due to receipt of signal ${signal}");
+                console.log(app.name + ": child process terminated due to receipt of signal ${signal}");
                 fsextra.emptyDirSync(app.livePath);
                 fsextra.rmdirSync(app.livePath);
                 delete this.applications[name];
+            }.bind(this));
+            app.process.kill();
+        });
+    }
+    restart(name) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var app = this.applications[name];
+            //The 'close' event is emitted when the stdio streams of a child process have been closed. 
+            //This is distinct from the 'exit' event, since multiple processes might share the same stdio streams.
+            app.process.on('exit', function (code, signal) {
+                return __awaiter(this, void 0, void 0, function* () {
+                    console.log(app.name + ": child process terminated due to receipt of signal ${signal}");
+                    yield app.run();
+                });
             }.bind(this));
             app.process.kill();
         });

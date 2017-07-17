@@ -57,6 +57,9 @@ class Application {
             case "uninstall":
                 this.onUninstall(message.data);
                 break;
+            case "restart":
+                this.onRestart(message.data);
+                break;
         }
     }
     applications(data) {
@@ -73,13 +76,18 @@ class Application {
     }
     onInstall(data) {
         return __awaiter(this, void 0, void 0, function* () {
-            var app = yield this.engine.install(data.name, data.url);
+            var app = yield this.engine.install(data.app, data.url);
             yield app.run();
         });
     }
     onUninstall(data) {
         return __awaiter(this, void 0, void 0, function* () {
-            yield this.engine.uninstall(data.name);
+            yield this.engine.uninstall(data.app);
+        });
+    }
+    onRestart(data) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this.engine.restart(data.app);
         });
     }
     installFromDb() {

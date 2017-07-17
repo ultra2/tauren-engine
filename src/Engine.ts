@@ -338,10 +338,23 @@ export default class Engine {
         var app = this.applications[name]
         
         app.process.on('close', function(code, signal) {
-            console.log("child process terminated due to receipt of signal ${signal}");
+            console.log(app.name + ": child process terminated due to receipt of signal ${signal}");
             fsextra.emptyDirSync(app.livePath)
             fsextra.rmdirSync(app.livePath)
             delete this.applications[name]
+        }.bind(this));
+
+        app.process.kill();
+    }
+
+    public async restart(name: string){
+        var app = this.applications[name]
+        
+        //The 'close' event is emitted when the stdio streams of a child process have been closed. 
+        //This is distinct from the 'exit' event, since multiple processes might share the same stdio streams.
+        app.process.on('exit', async function(code, signal) {
+            console.log(app.name + ": child process terminated due to receipt of signal ${signal}");
+            await app.run()
         }.bind(this));
 
         app.process.kill();
