@@ -29,24 +29,28 @@ class Engine {
             //await this.initMongo()
             //this.gridfs = gridfs(this.db, mongodb);
             try {
+                console.log("1. addApplications");
                 this.addApplications();
+                console.log("2. ensureManager");
                 yield this.ensureManager();
+                console.log("3. updateApplications");
                 yield this.updateApplications();
+                console.log("4. runApplications");
                 yield this.runApplications();
+                //var manager = new Application("manager", 5000, this)
+                //this.applications["manager"] = manager
+                //await manager.init()
+                //var studio = new Application("studio", 5001, this)
+                //this.applications["studio"] = studio
+                //await studio.init()
+                //await this.loadApplications()
+                //await this.updateStudio()
+                //await this.initRouter()
+                yield this.initApp();
             }
             catch (err) {
                 console.log(err);
             }
-            //var manager = new Application("manager", 5000, this)
-            //this.applications["manager"] = manager
-            //await manager.init()
-            //var studio = new Application("studio", 5001, this)
-            //this.applications["studio"] = studio
-            //await studio.init()
-            //await this.loadApplications()
-            //await this.updateStudio()
-            //await this.initRouter()
-            yield this.initApp();
         });
     }
     middleware(req, res) {
@@ -68,8 +72,8 @@ class Engine {
         }
         this.proxy.web(req, res, {
             target: 'http://localhost:' + this.applications[app].port
-        }, function (e) {
-            console.log(e, req);
+        }, function (err) {
+            console.log(err);
         });
     }
     upgrade(req, res) {
@@ -91,8 +95,8 @@ class Engine {
         }
         this.proxy.ws(req, res, {
             target: 'http://localhost:' + this.applications[app].port
-        }, function (e) {
-            console.log(e, req);
+        }, function (err) {
+            console.log(err);
         });
     }
     initApp() {
