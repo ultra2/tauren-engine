@@ -251,7 +251,7 @@ class Engine {
     //    }.bind(this))
     //}
     addApplications() {
-        fsextra.ensureDir(this.livePath);
+        fsextra.ensureDirSync(this.livePath);
         this.applications = {};
         var directories = fsextra.readdirSync(this.livePath);
         for (var i in directories) {
