@@ -300,9 +300,11 @@ class Engine {
     }
     ensureManager() {
         return __awaiter(this, void 0, void 0, function* () {
-            if (this.applications["manager"])
+            console.log(process.env, process.env["MANAGER_ALIAS"]);
+            var name = process.env["MANAGER_ALIAS"] || "manager";
+            if (this.applications[name])
                 return;
-            return yield this.install("manager", "https://gitlab.com/ultra2/manager.git");
+            return yield this.install(name, "https://gitlab.com/ultra2/manager.git");
         });
     }
     updateApplications() {
