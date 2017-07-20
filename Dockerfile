@@ -1,6 +1,7 @@
 FROM node:7.2.1
 
 RUN mkdir -p /tmp
+VOLUME /tmp
 
 # Create app directory
 RUN mkdir -p /usr/src/app
