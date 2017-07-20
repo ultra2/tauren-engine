@@ -300,7 +300,6 @@ class Engine {
     }
     ensureManager() {
         return __awaiter(this, void 0, void 0, function* () {
-            console.log(process.env, process.env["MANAGER_ALIAS"]);
             var name = process.env["MANAGER_ALIAS"] || "manager";
             if (this.applications[name])
                 return;
