@@ -361,8 +361,9 @@ export default class Engine {
     }
 
     public async ensureManager() {
-        if (this.applications["manager"]) return
-        return await this.install("manager", "https://gitlab.com/ultra2/manager.git")
+	var name = process.env["MANAGER_ALIAS"] || "manager"
+        if (this.applications[name]) return
+        return await this.install(name, "https://gitlab.com/ultra2/manager.git")
     }
 
     public async updateApplications(){
