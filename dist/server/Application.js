@@ -51,6 +51,9 @@ class Application {
             case "update":
                 this.onUpdate(message.data);
                 break;
+            case "push":
+                this.onPush(message.data);
+                break;
             case "install":
                 this.onInstall(message.data);
                 break;
@@ -63,19 +66,22 @@ class Application {
             case "restart":
                 this.onRestart(message.data);
                 break;
+            case "npminstall":
+                this.onNpminstall(message.data);
+                break;
         }
     }
     applications(data) {
-        return __awaiter(this, void 0, void 0, function* () {
-            var applications = Object.keys(this.engine.applications);
-            this.process.send({ command: "applications", data: applications });
-        });
+        var applications = Object.keys(this.engine.applications);
+        this.process.send({ command: "applications", data: applications });
     }
     onUpdate(data) {
-        return __awaiter(this, void 0, void 0, function* () {
-            var app = this.engine.applications[data.app];
-            app.updateFromGit();
-        });
+        var app = this.engine.applications[data.app];
+        app.updateFromGit();
+    }
+    onPush(data) {
+        var app = this.engine.applications[data.app];
+        app.pushToGit();
     }
     onInstall(data) {
         this.engine.install(data.app, data.url, data.accessToken);
@@ -88,9 +94,11 @@ class Application {
         app.run();
     }
     onRestart(data) {
-        return __awaiter(this, void 0, void 0, function* () {
-            this.engine.restart(data.app);
-        });
+        this.engine.restart(data.app);
+    }
+    onNpminstall(data) {
+        var app = this.engine.applications[data.app];
+        app.npminstall();
     }
     installFromDb() {
         return __awaiter(this, void 0, void 0, function* () {
@@ -204,6 +212,56 @@ class Application {
                 }.bind(this));
             }
             return new Promise(donpminstall.bind(this));
+        });
+    }
+    pushToGit(app) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                console.log(this.name + " push...");
+                var repo = yield Git.Repository.open(this.livePath);
+                yield gitkit.config.set(repo, {
+                    'user.name': 'John Doe',
+                    'user.email': 'johndoe@example.com'
+                });
+                var diff = yield gitkit.diff(repo);
+                //console.log(diff)
+                yield gitkit.commit(repo, {
+                    'message': 'commit message'
+                });
+                var log = yield gitkit.log(repo);
+                //console.log(log)
+                //index
+                //var index = await repo.refreshIndex()
+                //var index = await repo.index()
+                //var a = await index.removeAll()
+                //var a2 =await index.addAll()
+                //var a3 =await index.write()
+                //var oid = await index.writeTree()
+                //commit
+                //await repo.createCommit("HEAD", signature, signature, "initial commit", oid, [])
+                //remote
+                var remote = yield Git.Remote.lookup(repo, "origin");
+                if (remote == null) {
+                    //var repourl = await this.getRepositoryUrl(app)
+                    //remote = await Git.Remote.create(repo, "origin", repourl)
+                }
+                //push
+                //await remote.push(["refs/heads/master:refs/heads/master"], { callbacks: this.engine.getRemoteCallbacks() })
+                var accessToken = "5e9270abeeae41c6dbde9ecc384385b05387bf83";
+                var pushOptions = {};
+                var url = remote.url();
+                if (url.indexOf('github.com') != -1) {
+                    pushOptions = { callbacks: this.getRemoteCallbacks(accessToken) };
+                }
+                else {
+                    url = url.replace("https://", "https://oauth2:" + accessToken + "@");
+                }
+                yield remote.push(["refs/heads/master:refs/heads/master"], pushOptions);
+                console.log(this.name + " push success");
+            }
+            catch (err) {
+                console.log(err);
+            }
         });
     }
     dbLoadFileById(id) {

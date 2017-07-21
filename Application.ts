@@ -56,21 +56,28 @@ export default class Application {
         switch (message.command){
             case "applications": this.applications(message.data); break
             case "update": this.onUpdate(message.data); break
+            case "push": this.onPush(message.data); break
             case "install": this.onInstall(message.data);  break
             case "uninstall": this.onUninstall(message.data);  break
-	    case "start": this.onStart(message.data);  break
+	        case "start": this.onStart(message.data);  break
             case "restart": this.onRestart(message.data);  break
+            case "npminstall": this.onNpminstall(message.data);  break
         }
     }
 
-    public async applications(data){
+    public applications(data){
         var applications = Object.keys(this.engine.applications)
         this.process.send({ command: "applications", data: applications })
     }
 
-    public async onUpdate(data){
+    public onUpdate(data){
         var app = this.engine.applications[data.app]
         app.updateFromGit()
+    }
+
+    public onPush(data){
+        var app = this.engine.applications[data.app]
+        app.pushToGit()
     }
 
     public onInstall(data){
@@ -82,12 +89,17 @@ export default class Application {
     }
 	
     public onStart(data){
-	var app = this.engine.applications[data.app]
-	app.run()    
+	    var app = this.engine.applications[data.app]
+	    app.run()    
     }
 
-    public async onRestart(data){
+    public onRestart(data){
         this.engine.restart(data.app)
+    }
+
+    public onNpminstall(data){
+        var app = this.engine.applications[data.app]
+	    app.npminstall()    
     }
 
     public async installFromDb(){
@@ -135,13 +147,13 @@ export default class Application {
         }
     }
 	
-     getRemoteCallbacks(accessToken: string){
-	return {
-	    certificateCheck: function() { return 1; },
-	    credentials: function() {
-	      return Git.Cred.userpassPlaintextNew(accessToken, "x-oauth-basic");
-	    }.bind(this)
-	}
+    getRemoteCallbacks(accessToken: string){
+        return {
+            certificateCheck: function() { return 1; },
+            credentials: function() {
+            return Git.Cred.userpassPlaintextNew(accessToken, "x-oauth-basic");
+            }.bind(this)
+        }
     }
 
     public async updateFromGit(): Promise<any> {
@@ -206,6 +218,67 @@ export default class Application {
         return new Promise(donpminstall.bind(this))
     }
  
+    public async pushToGit(app: string) {
+        try{
+            console.log(this.name + " push...")
+
+            var repo = await Git.Repository.open(this.livePath) 
+    
+            await gitkit.config.set(repo, {
+                'user.name': 'John Doe',
+                'user.email': 'johndoe@example.com'
+            })
+
+            var diff = await gitkit.diff(repo)
+            //console.log(diff)
+
+            await gitkit.commit(repo, {
+                'message': 'commit message'
+            });
+
+            var log = await gitkit.log(repo)
+            //console.log(log)
+
+            //index
+            //var index = await repo.refreshIndex()
+            //var index = await repo.index()
+            //var a = await index.removeAll()
+            //var a2 =await index.addAll()
+            //var a3 =await index.write()
+            //var oid = await index.writeTree()
+
+            //commit
+            //await repo.createCommit("HEAD", signature, signature, "initial commit", oid, [])
+             
+            //remote
+            var remote = await Git.Remote.lookup(repo, "origin")
+            if (remote == null){
+                //var repourl = await this.getRepositoryUrl(app)
+                //remote = await Git.Remote.create(repo, "origin", repourl)
+            }
+
+            //push
+            //await remote.push(["refs/heads/master:refs/heads/master"], { callbacks: this.engine.getRemoteCallbacks() })
+            
+            var accessToken = "5e9270abeeae41c6dbde9ecc384385b05387bf83"
+            var pushOptions = {}
+            var url = remote.url()
+
+            if (url.indexOf('github.com') != -1){
+                pushOptions = { callbacks: this.getRemoteCallbacks(accessToken) }
+            }
+            else{
+                url = url.replace("https://", "https://oauth2:" + accessToken + "@");
+            }
+
+            await remote.push(["refs/heads/master:refs/heads/master"], pushOptions)
+            console.log(this.name + " push success")
+        }
+        catch(err){
+            console.log(err)
+        }
+    }
+
     public async dbLoadFileById(id: string): Promise<any> {
         var readstream = this.engine.gridfs.createReadStream({
             _id: id,
