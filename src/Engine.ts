@@ -374,9 +374,12 @@ export default class Engine {
     }
 
     public async runApplications(){
-        await Promise.all(this.getApplications().map(async app => {
-            await app.run()
-        }))
+	var name = process.env["MANAGER_ALIAS"] || "manager"
+	var app = this.applications[name]
+	await app.run()
+        // await Promise.all(this.getApplications().map(async app => {
+        //    await app.run()
+        //}))
     }
 
     public getApplications(): Array<Application>{
