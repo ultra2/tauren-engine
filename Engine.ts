@@ -375,12 +375,63 @@ export default class Engine {
     }
 
     public async runApplications(){
-	var name = process.env["MANAGER_ALIAS"] || "manager"
-	var app = this.applications[name]
-	await app.run()
+        var name = process.env["MANAGER_ALIAS"] || "manager"
+        var app = this.applications[name]
+        await app.run()
         // await Promise.all(this.getApplications().map(async app => {
         //    await app.run()
         //}))
+    }
+
+    public onMessage(sender: string, command: string, data: any){
+        console.log(sender, command, data)
+        this['on' + command[0].toUpperCase() + command.slice(1)](sender, data)
+    }
+
+    public onApplications(sender: string, data: any){
+        var applications = Object.keys(this.applications)
+        var senderApp = this.applications[sender]
+        senderApp.processs.send({ command: "applications", data: applications })
+    }
+
+    public onUpdate(sender: string, data: any){
+        var app = this.applications[data.app]
+        app.updateFromGit()
+    }
+
+    public onPush(sender: string, data: any){
+        var app = this.applications[data.app]
+        app.pushToGit()
+    }
+
+    public onInstall(sender: string, data: any){
+        this.install(data.app, data.url, data.accessToken)
+    }
+
+    public onUninstall(sender: string, data: any){
+        this.uninstall(data.app)
+    }
+	
+    public onStart(sender: string, data: any){
+	    var app = this.applications[data.app]
+	    app.run()    
+    }
+
+    public onRestart(sender: string, data: any){
+        this.restart(data.app)
+    }
+
+    public onNpminstall(sender: string, data: any){
+        var app = this.applications[data.app]
+	    app.npminstall()    
+    }
+
+    public appStateChanged(app: string, state: string){
+        this.broadcast({ command: "appStateChanged", data: { app: app, state: state } })
+    }
+
+    public broadcast(data: any){
+        this.getApplications().map(app => app.process.send(data))
     }
 
     public getApplications(): Array<Application>{

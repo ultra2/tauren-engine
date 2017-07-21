@@ -324,6 +324,46 @@ class Engine {
             //}))
         });
     }
+    onMessage(sender, command, data) {
+        console.log(sender, command, data);
+        this['on' + command[0].toUpperCase() + command.slice(1)](sender, data);
+    }
+    onApplications(sender, data) {
+        var applications = Object.keys(this.applications);
+        var senderApp = this.applications[sender];
+        senderApp.processs.send({ command: "applications", data: applications });
+    }
+    onUpdate(sender, data) {
+        var app = this.applications[data.app];
+        app.updateFromGit();
+    }
+    onPush(sender, data) {
+        var app = this.applications[data.app];
+        app.pushToGit();
+    }
+    onInstall(sender, data) {
+        this.install(data.app, data.url, data.accessToken);
+    }
+    onUninstall(sender, data) {
+        this.uninstall(data.app);
+    }
+    onStart(sender, data) {
+        var app = this.applications[data.app];
+        app.run();
+    }
+    onRestart(sender, data) {
+        this.restart(data.app);
+    }
+    onNpminstall(sender, data) {
+        var app = this.applications[data.app];
+        app.npminstall();
+    }
+    appStateChanged(app, state) {
+        this.broadcast({ command: "appStateChanged", data: { app: app, state: state } });
+    }
+    broadcast(data) {
+        this.getApplications().map(app => app.process.send(data));
+    }
     getApplications() {
         var applications = [];
         Object.keys(this.applications).map(function (key) {

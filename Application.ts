@@ -48,58 +48,9 @@ export default class Application {
         var options = { cwd: cwd, env: { workingUrl: this.engine.workingUrl, PORT: this.port } }
         this.process = cp.fork(modulePath, args, options)
 
-        this.process.on('message', this.onMessage.bind(this))
-    }
-
-    public onMessage(message){
-        console.log(message)
-        switch (message.command){
-            case "applications": this.applications(message.data); break
-            case "update": this.onUpdate(message.data); break
-            case "push": this.onPush(message.data); break
-            case "install": this.onInstall(message.data);  break
-            case "uninstall": this.onUninstall(message.data);  break
-	        case "start": this.onStart(message.data);  break
-            case "restart": this.onRestart(message.data);  break
-            case "npminstall": this.onNpminstall(message.data);  break
-        }
-    }
-
-    public applications(data){
-        var applications = Object.keys(this.engine.applications)
-        this.process.send({ command: "applications", data: applications })
-    }
-
-    public onUpdate(data){
-        var app = this.engine.applications[data.app]
-        app.updateFromGit()
-    }
-
-    public onPush(data){
-        var app = this.engine.applications[data.app]
-        app.pushToGit()
-    }
-
-    public onInstall(data){
-        this.engine.install(data.app, data.url, data.accessToken)
-    }
-
-    public onUninstall(data){
-        this.engine.uninstall(data.app)
-    }
-	
-    public onStart(data){
-	    var app = this.engine.applications[data.app]
-	    app.run()    
-    }
-
-    public onRestart(data){
-        this.engine.restart(data.app)
-    }
-
-    public onNpminstall(data){
-        var app = this.engine.applications[data.app]
-	    app.npminstall()    
+        this.process.on('message', function(message) {
+            this.engine.onMessage(this.name, message)
+        }.bind(this))
     }
 
     public async installFromDb(){
@@ -221,6 +172,7 @@ export default class Application {
     public async pushToGit(app: string) {
         try{
             console.log(this.name + " push...")
+            this.engine.appStateChanged(this.name, "pushing")
 
             var repo = await Git.Repository.open(this.livePath) 
     
@@ -260,7 +212,7 @@ export default class Application {
             //push
             //await remote.push(["refs/heads/master:refs/heads/master"], { callbacks: this.engine.getRemoteCallbacks() })
             
-            var accessToken = "06eda15f0876a07974858e0760cc310b777f9a49"
+            var accessToken = "ff1bea1d5d1cd623e3baab0f5a37162873e8107a"
             var pushOptions = {}
             var url = remote.url()
 
@@ -272,7 +224,9 @@ export default class Application {
             }
 
             await remote.push(["refs/heads/master:refs/heads/master"], pushOptions)
+
             console.log(this.name + " push success")
+            this.engine.appStateChanged(this.name, "pushed")
         }
         catch(err){
             console.log(err)

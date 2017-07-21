@@ -40,65 +40,9 @@ class Application {
         var args = []; //DEBUG: ["--debug-brk=9229"] 
         var options = { cwd: cwd, env: { workingUrl: this.engine.workingUrl, PORT: this.port } };
         this.process = cp.fork(modulePath, args, options);
-        this.process.on('message', this.onMessage.bind(this));
-    }
-    onMessage(message) {
-        console.log(message);
-        switch (message.command) {
-            case "applications":
-                this.applications(message.data);
-                break;
-            case "update":
-                this.onUpdate(message.data);
-                break;
-            case "push":
-                this.onPush(message.data);
-                break;
-            case "install":
-                this.onInstall(message.data);
-                break;
-            case "uninstall":
-                this.onUninstall(message.data);
-                break;
-            case "start":
-                this.onStart(message.data);
-                break;
-            case "restart":
-                this.onRestart(message.data);
-                break;
-            case "npminstall":
-                this.onNpminstall(message.data);
-                break;
-        }
-    }
-    applications(data) {
-        var applications = Object.keys(this.engine.applications);
-        this.process.send({ command: "applications", data: applications });
-    }
-    onUpdate(data) {
-        var app = this.engine.applications[data.app];
-        app.updateFromGit();
-    }
-    onPush(data) {
-        var app = this.engine.applications[data.app];
-        app.pushToGit();
-    }
-    onInstall(data) {
-        this.engine.install(data.app, data.url, data.accessToken);
-    }
-    onUninstall(data) {
-        this.engine.uninstall(data.app);
-    }
-    onStart(data) {
-        var app = this.engine.applications[data.app];
-        app.run();
-    }
-    onRestart(data) {
-        this.engine.restart(data.app);
-    }
-    onNpminstall(data) {
-        var app = this.engine.applications[data.app];
-        app.npminstall();
+        this.process.on('message', function (message) {
+            this.engine.onMessage(this.name, message);
+        }.bind(this));
     }
     installFromDb() {
         return __awaiter(this, void 0, void 0, function* () {
@@ -218,6 +162,7 @@ class Application {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 console.log(this.name + " push...");
+                this.engine.appStateChanged(this.name, "pushing");
                 var repo = yield Git.Repository.open(this.livePath);
                 yield gitkit.config.set(repo, {
                     'user.name': 'John Doe',
@@ -247,7 +192,7 @@ class Application {
                 }
                 //push
                 //await remote.push(["refs/heads/master:refs/heads/master"], { callbacks: this.engine.getRemoteCallbacks() })
-                var accessToken = "06eda15f0876a07974858e0760cc310b777f9a49";
+                var accessToken = "ff1bea1d5d1cd623e3baab0f5a37162873e8107a";
                 var pushOptions = {};
                 var url = remote.url();
                 if (url.indexOf('github.com') != -1) {
@@ -258,6 +203,7 @@ class Application {
                 }
                 yield remote.push(["refs/heads/master:refs/heads/master"], pushOptions);
                 console.log(this.name + " push success");
+                this.engine.appStateChanged(this.name, "pushed");
             }
             catch (err) {
                 console.log(err);
