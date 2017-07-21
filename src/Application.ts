@@ -116,7 +116,7 @@ export default class Application {
             console.log("clone...")
             var cloneOptions = {}
 	    if (url.indexOf('github.com') != -1){
-	       cloneOptions = { fetchOpts: { callbacks: this.engine.getRemoteCallbacks(accessToken) } }
+	       cloneOptions = { fetchOpts: { callbacks: this.getRemoteCallbacks(accessToken) } }
 	    }
 	    else{
 	       url = url.replace("https://", "https://oauth2:" + accessToken + "@");
@@ -130,6 +130,15 @@ export default class Application {
             console.log(err)
             throw err
         }
+    }
+	
+     getRemoteCallbacks(accessToken: string){
+	return {
+	    certificateCheck: function() { return 1; },
+	    credentials: function() {
+	      return Git.Cred.userpassPlaintextNew(accessToken, "x-oauth-basic");
+	    }.bind(this)
+	}
     }
 
     public async updateFromGit(): Promise<any> {
