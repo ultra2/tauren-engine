@@ -265,11 +265,11 @@ class Engine {
     install(name, url, accessToken) {
         return __awaiter(this, void 0, void 0, function* () {
             var app = new Application_1.default(name, this);
-	    if (!accessToken) {
-	         accessToken = this.gitLabAccessToken
-	    }
-            url = url.replace("https://", "https://oauth2:" + accessToken + "@");
-            yield app.cloneFromGit(url);
+	    //if (!accessToken) {
+	    //     accessToken = this.gitLabAccessToken
+	    //}
+            //url = url.replace("https://", "https://oauth2:" + accessToken + "@");
+            yield app.cloneFromGit(url, accessToken);
             yield app.npminstall();
             this.applications[app.name] = app;
             return app;
