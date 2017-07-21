@@ -247,7 +247,7 @@ class Application {
                 }
                 //push
                 //await remote.push(["refs/heads/master:refs/heads/master"], { callbacks: this.engine.getRemoteCallbacks() })
-                var accessToken = "5e9270abeeae41c6dbde9ecc384385b05387bf83";
+                var accessToken = "06eda15f0876a07974858e0760cc310b777f9a49";
                 var pushOptions = {};
                 var url = remote.url();
                 if (url.indexOf('github.com') != -1) {
