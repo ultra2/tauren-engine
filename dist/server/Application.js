@@ -91,9 +91,14 @@ class Application {
         });
     }
     getRemoteCallbacks(accessToken) {
+        var counter = 0;
         return {
             certificateCheck: function () { return 1; },
             credentials: function () {
+                if (counter > 0) {
+                    return Git.Cred.defaultNew();
+                }
+                counter++;
                 return Git.Cred.userpassPlaintextNew(accessToken, "x-oauth-basic");
             }.bind(this)
         };
