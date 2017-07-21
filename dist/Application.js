@@ -78,7 +78,7 @@ class Application {
         });
     }
     onInstall(data) {
-        this.engine.install(data.app, data.url);
+        this.engine.install(data.app, data.url, data.accessToken);
     }
     onUninstall(data) {
         this.engine.uninstall(data.app);
