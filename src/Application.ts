@@ -111,9 +111,10 @@ export default class Application {
         console.log("writeFileSync: " + fullPath)
     }
 
-    public async cloneFromGit(url: string): Promise<any> {
+    public async cloneFromGit(url: string, accessToken: string): Promise<any> {
         try {
             console.log("clone...")
+	    //url = url.replace("https://", "https://oauth2:" + accessToken + "@");
             //var url = await this.getRepositoryUrl()
             //var cloneOptions = { fetchOpts: { callbacks: this.engine.getRemoteCallbacks() } }
             var repo = await Git.Clone(url, this.livePath)
