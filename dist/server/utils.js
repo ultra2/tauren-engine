@@ -1,8 +1,9 @@
 "use strict";
-import * as pathhelper from "path";
-import * as request from "request";
-import * as mime from "mime";
-export default class Utils {
+Object.defineProperty(exports, "__esModule", { value: true });
+const pathhelper = require("path");
+const request = require("request");
+const mime = require("mime");
+class Utils {
     static fromStream(stream) {
         return new Promise((resolve, reject) => {
             var buffer;
@@ -59,3 +60,4 @@ Utils.parseUrl = function (url) {
         url: url.substr(pos)
     };
 };
+exports.default = Utils;

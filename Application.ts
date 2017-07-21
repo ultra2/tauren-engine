@@ -115,12 +115,15 @@ export default class Application {
         try {
             console.log("clone...")
             var cloneOptions = {}
-	    if (url.indexOf('github.com') != -1){
-	       cloneOptions = { fetchOpts: { callbacks: this.getRemoteCallbacks(accessToken) } }
-	    }
-	    else{
-	       url = url.replace("https://", "https://oauth2:" + accessToken + "@");
-	    }
+
+            if (accessToken){
+                if (url.indexOf('github.com') != -1){
+                    cloneOptions = { fetchOpts: { callbacks: this.getRemoteCallbacks(accessToken) } }
+                }
+                if (url.indexOf('gitlab.com') != -1){
+                    url = url.replace("https://", "https://oauth2:" + accessToken + "@");
+                }
+            }
 
             var repo = await Git.Clone(url, this.livePath, cloneOptions)
             console.log("clone success")

@@ -7,12 +7,13 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import * as path from 'path';
-import * as http from 'http';
-import Application from './Application';
-import * as fsextra from 'fs-extra';
+Object.defineProperty(exports, "__esModule", { value: true });
+const path = require("path");
+const http = require("http");
+const Application_1 = require("./Application");
+const fsextra = require("fs-extra");
 var httpProxy = require('http-proxy');
-export default class Engine {
+class Engine {
     constructor() {
         this.proxy = httpProxy.createProxy({ ws: true });
         this.info = {};
@@ -258,17 +259,13 @@ export default class Engine {
             var dir = directories[i];
             if (!fsextra.lstatSync(path.join(this.livePath, dir)).isDirectory())
                 continue;
-            var app = new Application(dir, this);
+            var app = new Application_1.default(dir, this);
             this.applications[app.name] = app;
         }
     }
     install(name, url, accessToken) {
         return __awaiter(this, void 0, void 0, function* () {
-            var app = new Application(name, this);
-            //if (!accessToken) {
-            //      accessToken = this.gitLabAccessToken
-            //}
-            //url = url.replace("https://", "https://oauth2:" + accessToken + "@")
+            var app = new Application_1.default(name, this);
             yield app.cloneFromGit(url, accessToken);
             yield app.npminstall();
             this.applications[app.name] = app;
@@ -345,3 +342,4 @@ export default class Engine {
         return result;
     }
 }
+exports.default = Engine;

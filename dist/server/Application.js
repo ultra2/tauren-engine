@@ -7,16 +7,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import * as pathhelper from 'path';
-import * as moment from 'moment';
-import * as uuid from "uuid";
-import * as fsextra from 'fs-extra';
-import Utils from './utils';
+Object.defineProperty(exports, "__esModule", { value: true });
+const pathhelper = require("path");
+const moment = require("moment");
+const uuid = require("uuid");
+const fsextra = require("fs-extra");
+const utils_1 = require("./utils");
 var cp = require('child_process');
 var npmi = require('npmi');
 var Git = require("nodegit");
 var gitkit = require('nodegit-kit');
-export default class Application {
+class Application {
     constructor(application, engine) {
         this.name = application;
         this.path = "/tmp/repos/" + this.name;
@@ -107,7 +108,7 @@ export default class Application {
                 filename: path,
                 root: this.name
             });
-            var buffer = yield Utils.fromStream(readstream);
+            var buffer = yield utils_1.default.fromStream(readstream);
             var fullPath = this.livePath + '/' + path;
             fsextra.ensureDirSync(pathhelper.dirname(fullPath));
             fsextra.writeFileSync(fullPath, buffer, { flag: 'w' });
@@ -119,11 +120,13 @@ export default class Application {
             try {
                 console.log("clone...");
                 var cloneOptions = {};
-                if (url.indexOf('github.com') != -1) {
-                    cloneOptions = { fetchOpts: { callbacks: this.getRemoteCallbacks(accessToken) } };
-                }
-                else {
-                    url = url.replace("https://", "https://oauth2:" + accessToken + "@");
+                if (accessToken) {
+                    if (url.indexOf('github.com') != -1) {
+                        cloneOptions = { fetchOpts: { callbacks: this.getRemoteCallbacks(accessToken) } };
+                    }
+                    if (url.indexOf('gitlab.com') != -1) {
+                        url = url.replace("https://", "https://oauth2:" + accessToken + "@");
+                    }
                 }
                 var repo = yield Git.Clone(url, this.livePath, cloneOptions);
                 console.log("clone success");
@@ -210,7 +213,7 @@ export default class Application {
                 root: this.name
             });
             try {
-                return yield Utils.fromStream(readstream);
+                return yield utils_1.default.fromStream(readstream);
             }
             catch (err) {
                 throw Error(err.message);
@@ -230,7 +233,7 @@ export default class Application {
                     filename: path,
                     root: this.name
                 });
-                result.buffer = yield Utils.fromStream(readstream);
+                result.buffer = yield utils_1.default.fromStream(readstream);
                 return result;
             }
             catch (err) {
@@ -246,13 +249,13 @@ export default class Application {
                 var writestream = this.engine.gridfs.createWriteStream({
                     _id: _id,
                     filename: path,
-                    content_type: Utils.getMime(path),
+                    content_type: utils_1.default.getMime(path),
                     metadata: {
                         modified: moment().format('YYYY-MM-DD HH:mm:ss Z')
                     },
                     root: this.name
                 });
-                yield Utils.toStream(content, writestream);
+                yield utils_1.default.toStream(content, writestream);
             }
             catch (err) {
                 throw Error(err.message);
@@ -260,5 +263,6 @@ export default class Application {
         });
     }
 }
+exports.default = Application;
 class FileInfo {
 }

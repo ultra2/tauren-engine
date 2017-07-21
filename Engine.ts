@@ -329,10 +329,6 @@ export default class Engine {
 
     public async install(name: string, url: string, accessToken: string){
         var app = new Application(name, this)
-	//if (!accessToken) {
-	//      accessToken = this.gitLabAccessToken
-	//}
-        //url = url.replace("https://", "https://oauth2:" + accessToken + "@")
         await app.cloneFromGit(url, accessToken)
         await app.npminstall()
         this.applications[app.name] = app
