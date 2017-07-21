@@ -9,7 +9,6 @@
     "npm": "*"
   },
   "scripts": {
-    //"preinstall": "sudo npm i -g node-gyp",
     "start": "node dist/server/start.js"
   },
   "author": "Ionut-Cristian Florescu <ionut.florescu@gmail.com>",
