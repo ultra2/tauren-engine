@@ -316,9 +316,11 @@ class Engine {
     }
     runApplications() {
         return __awaiter(this, void 0, void 0, function* () {
-            yield Promise.all(this.getApplications().map((app) => __awaiter(this, void 0, void 0, function* () {
+            var name = process.env["MANAGER_ALIAS"] || "manager"
+	        var app = this.applications[name]
+            //yield Promise.all(this.getApplications().map((app) => __awaiter(this, void 0, void 0, function* () {
                 yield app.run();
-            })));
+            //})));
         });
     }
     getApplications() {
