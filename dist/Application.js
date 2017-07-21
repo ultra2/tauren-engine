@@ -57,6 +57,9 @@ class Application {
             case "uninstall":
                 this.onUninstall(message.data);
                 break;
+            case "start":
+                this.onStart(message.data);
+                break;
             case "restart":
                 this.onRestart(message.data);
                 break;
@@ -75,20 +78,17 @@ class Application {
         });
     }
     onInstall(data) {
-        return __awaiter(this, void 0, void 0, function* () {
-            var app = yield this.engine.install(data.app, data.url);
-            yield app.run();
-        });
+        this.engine.install(data.app, data.url);
     }
     onUninstall(data) {
-        return __awaiter(this, void 0, void 0, function* () {
-            yield this.engine.uninstall(data.app);
-        });
+        this.engine.uninstall(data.app);
+    }
+    onStart(data){
+	    var app = this.engine.applications[data.app]
+	    app.run()    
     }
     onRestart(data) {
-        return __awaiter(this, void 0, void 0, function* () {
-            yield this.engine.restart(data.app);
-        });
+        this.engine.restart(data.app);
     }
     installFromDb() {
         return __awaiter(this, void 0, void 0, function* () {
