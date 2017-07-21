@@ -58,6 +58,7 @@ export default class Application {
             case "update": this.onUpdate(message.data); break
             case "install": this.onInstall(message.data);  break
             case "uninstall": this.onUninstall(message.data);  break
+	    case "start": this.onStart(message.data);  break
             case "restart": this.onRestart(message.data);  break
         }
     }
@@ -72,17 +73,21 @@ export default class Application {
         app.updateFromGit()
     }
 
-    public async onInstall(data){
-        var app = await this.engine.install(data.app, data.url)
-        await app.run()
+    public onInstall(data){
+        this.engine.install(data.app, data.url)
     }
 
-    public async onUninstall(data){
-        await this.engine.uninstall(data.app)
+    public onUninstall(data){
+        this.engine.uninstall(data.app)
+    }
+	
+    public onStart(data){
+	var app = this.engine.applications[data.app]
+	app.run()    
     }
 
     public async onRestart(data){
-        await this.engine.restart(data.app)
+        this.engine.restart(data.app)
     }
 
     public async installFromDb(){
