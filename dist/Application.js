@@ -113,10 +113,11 @@ class Application {
             console.log("writeFileSync: " + fullPath);
         });
     }
-    cloneFromGit(url) {
+    cloneFromGit(url, accessToken) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 console.log("clone...");
+		//url = url.replace("https://", "https://oauth2:" + accessToken + "@");
                 //var url = await this.getRepositoryUrl()
                 //var cloneOptions = { fetchOpts: { callbacks: this.engine.getRemoteCallbacks() } }
                 var repo = yield Git.Clone(url, this.livePath);
