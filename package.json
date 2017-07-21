@@ -3,14 +3,14 @@
   "version": "1.0.1",
   "description": "Tauren Engine",
   "private": true,
-  "main": "dist/start.js",
+  "main": "dist/server/start.js",
   "engine": {
     "node": "*",
     "npm": "*"
   },
   "scripts": {
     "preinstall": "sudo npm i -g node-gyp",
-    "start": "node dist/start.js"
+    "start": "node dist/server/start.js"
   },
   "author": "Ionut-Cristian Florescu <ionut.florescu@gmail.com>",
   "license": "ISC",

@@ -1,0 +1,9 @@
+{
+	"outDir": "dist/server",
+	"noEmitOnError": true,
+	"noImplicitAny": false,
+	"target": 2,
+	"module": 1,
+	"moduleResolution": 2,
+	"types" : ["node"]
+}

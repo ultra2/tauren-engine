@@ -7,8 +7,8 @@ import * as bodyParser from "body-parser"
 import * as mongodb from "mongodb"
 import * as gridfs from "gridfs-stream"
 import * as request from "request"
-import http = require('http')
-import https = require('https')
+import * as http from 'http'
+import * as https from 'https'
 import Application from './Application'
 import Utils from './utils'
 import * as fsextra from 'fs-extra'
@@ -368,7 +368,7 @@ export default class Engine {
     public async ensureManager() {
 	    var name = process.env["MANAGER_ALIAS"] || "manager"
         if (this.applications[name]) return
-        return await this.install(name, "https://gitlab.com/ultra2/manager.git")
+        return await this.install(name, "https://gitlab.com/ultra2/manager.git", "")
     }
 
     public async updateApplications(){
