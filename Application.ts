@@ -49,7 +49,7 @@ export default class Application {
         this.process = cp.fork(modulePath, args, options)
 
         this.process.on('message', function(message) {
-            this.engine.onMessage(this.name, message)
+            this.engine.onMessage(this.name, message.command, message.data)
         }.bind(this))
     }
 

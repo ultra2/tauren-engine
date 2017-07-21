@@ -391,7 +391,7 @@ export default class Engine {
     public onApplications(sender: string, data: any){
         var applications = Object.keys(this.applications)
         var senderApp = this.applications[sender]
-        senderApp.processs.send({ command: "applications", data: applications })
+        senderApp.process.send({ command: "applications", data: applications })
     }
 
     public onUpdate(sender: string, data: any){
@@ -431,7 +431,9 @@ export default class Engine {
     }
 
     public broadcast(data: any){
-        this.getApplications().map(app => app.process.send(data))
+        this.getApplications().map(app => {
+             if (app.process) app.process.send(data)
+        })
     }
 
     public getApplications(): Array<Application>{

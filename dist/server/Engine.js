@@ -331,7 +331,7 @@ class Engine {
     onApplications(sender, data) {
         var applications = Object.keys(this.applications);
         var senderApp = this.applications[sender];
-        senderApp.processs.send({ command: "applications", data: applications });
+        senderApp.process.send({ command: "applications", data: applications });
     }
     onUpdate(sender, data) {
         var app = this.applications[data.app];
@@ -362,7 +362,10 @@ class Engine {
         this.broadcast({ command: "appStateChanged", data: { app: app, state: state } });
     }
     broadcast(data) {
-        this.getApplications().map(app => app.process.send(data));
+        this.getApplications().map(app => {
+            if (app.process)
+                app.process.send(data);
+        });
     }
     getApplications() {
         var applications = [];
