@@ -114,10 +114,15 @@ export default class Application {
     public async cloneFromGit(url: string, accessToken: string): Promise<any> {
         try {
             console.log("clone...")
-	    //url = url.replace("https://", "https://oauth2:" + accessToken + "@");
-            //var url = await this.getRepositoryUrl()
-            //var cloneOptions = { fetchOpts: { callbacks: this.engine.getRemoteCallbacks() } }
-            var repo = await Git.Clone(url, this.livePath)
+            var cloneOptions = {}
+	    if (url.indexOf('github.com') != -1){
+	       cloneOptions = { fetchOpts: { callbacks: this.engine.getRemoteCallbacks(accessToken) } }
+	    }
+	    else{
+	       url = url.replace("https://", "https://oauth2:" + accessToken + "@");
+	    }
+
+            var repo = await Git.Clone(url, this.livePath, cloneOptions)
             console.log("clone success")
             return repo
         }
