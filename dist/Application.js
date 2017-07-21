@@ -117,9 +117,14 @@ class Application {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 console.log("clone...");
-		//url = url.replace("https://", "https://oauth2:" + accessToken + "@");
-                //var url = await this.getRepositoryUrl()
-                //var cloneOptions = { fetchOpts: { callbacks: this.engine.getRemoteCallbacks() } }
+		var cloneOptions = {}
+		if (url.indexOf('github.com') != -1){
+		    cloneOptions = { fetchOpts: { callbacks: this.engine.getRemoteCallbacks(accessToken) } }
+	    	}
+	    	else{
+		    url = url.replace("https://", "https://oauth2:" + accessToken + "@");
+	    	}
+	
                 var repo = yield Git.Clone(url, this.livePath);
                 console.log("clone success");
                 return repo;
