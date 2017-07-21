@@ -119,7 +119,7 @@ class Application {
                 console.log("clone...");
 		var cloneOptions = {}
 		if (url.indexOf('github.com') != -1){
-		    cloneOptions = { fetchOpts: { callbacks: this.engine.getRemoteCallbacks(accessToken) } }
+		    cloneOptions = { fetchOpts: { callbacks: this.getRemoteCallbacks(accessToken) } }
 	    	}
 	    	else{
 		    url = url.replace("https://", "https://oauth2:" + accessToken + "@");
@@ -134,6 +134,14 @@ class Application {
                 throw err;
             }
         });
+    }
+    getRemoteCallbacks(accessToken){
+	return {
+	    certificateCheck: function() { return 1; },
+	    credentials: function() {
+	      return Git.Cred.userpassPlaintextNew(accessToken, "x-oauth-basic");
+	    }.bind(this)
+	}
     }
     updateFromGit() {
         return __awaiter(this, void 0, void 0, function* () {
