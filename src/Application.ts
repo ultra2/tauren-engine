@@ -74,7 +74,7 @@ export default class Application {
     }
 
     public onInstall(data){
-        this.engine.install(data.app, data.url)
+        this.engine.install(data.app, data.url, data.accessToken)
     }
 
     public onUninstall(data){
