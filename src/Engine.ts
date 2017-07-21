@@ -27,6 +27,7 @@ export default class Engine {
     public workingUrl: string
     public templateUrl: string
     public gitLabAccessToken: string
+    public gitHubAccessToken: string
     public livePath: string
 
     constructor() {
@@ -37,6 +38,7 @@ export default class Engine {
         //this.templateUrl = "mongodb://guest:guest@ds117189.mlab.com:17189/ide"
         this.workingUrl = "mongodb://admin:Leonardo19770206Z@ds056549.mlab.com:56549/tauren"
         this.gitLabAccessToken = "k5T9xs82anhKt1JKaM39"
+	this.gitHubAccessToken = "5e9270abeeae41c6dbde9ecc384385b05387bf83"
         this.livePath = "/tmp/live"
     }
 
@@ -327,11 +329,11 @@ export default class Engine {
 
     public async install(name: string, url: string, accessToken: string){
         var app = new Application(name, this)
-	if (!accessToken) {
-	      accessToken = this.gitLabAccessToken
-	}
-        url = url.replace("https://", "https://oauth2:" + accessToken + "@")
-        await app.cloneFromGit(url)
+	//if (!accessToken) {
+	//      accessToken = this.gitLabAccessToken
+	//}
+        //url = url.replace("https://", "https://oauth2:" + accessToken + "@")
+        await app.cloneFromGit(url, accessToken)
         await app.npminstall()
         this.applications[app.name] = app
         return app
