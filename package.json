@@ -35,7 +35,6 @@
     "@types/mongodb": "^2.1.34",
     "@types/gridfs-stream": "^0.5.28",
     "@types/fs-extra": "^3.0.3",
-    "@types/moment": "^2.13.0",
     "@types/request": "0.0.33",
     "@types/mime": "0.0.29"
   }
