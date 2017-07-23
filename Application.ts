@@ -107,7 +107,8 @@ export default class Application {
                     return Git.Cred.defaultNew()
                 }
                 counter++
-                return Git.Cred.userpassPlaintextNew(accessToken, "x-oauth-basic");
+                //return Git.Cred.userpassPlaintextNew(accessToken, "x-oauth-basic");
+                return Git.Cred.userpassPlaintextNew("ultra2", "Leonardo19770206Z");
             }.bind(this)
         }
     }
